@@ -16,7 +16,10 @@ const trades = createFileTradeReadModel({
   instrumentSymbol: process.env.EQUITY_SYMBOL,
   instrumentDecimals: 6,
 })
-const server = createVerdictServer({ evaluator, paymentGate, signingKey, trades })
+const server = createVerdictServer({
+  evaluator, paymentGate, signingKey, trades,
+  corsAllowedOrigin: process.env.CORS_ALLOWED_ORIGIN,
+})
 const port = Number(process.env.PORT ?? 4020)
 const host = process.env.HOST ?? '127.0.0.1'
 server.listen(port, host, () => console.log(`conformance seller listening on ${host}:${port}`))

@@ -26,6 +26,7 @@ export interface ServiceOptions {
   nonce?: () => string
   authorizationTtlSeconds?: number
   trades?: TradeReadModel
+  corsAllowedOrigin?: string
 }
 
 interface CompletedResponse {
@@ -73,6 +74,14 @@ export function createVerdictServer(options: ServiceOptions) {
   }
   const completed = new Map<string, CompletedResponse>()
   const inFlight = new Map<string, Promise<AttemptResult>>()
+  let allowedOrigin: string | null = null
+  if (options.corsAllowedOrigin) {
+    const parsed = new URL(options.corsAllowedOrigin)
+    if (!['https:', 'http:'].includes(parsed.protocol) || parsed.origin !== options.corsAllowedOrigin) {
+      throw new Error('corsAllowedOrigin must be an exact HTTP(S) origin')
+    }
+    allowedOrigin = parsed.origin
+  }
 
   async function produce(request: IncomingMessage, input: VerdictRequest, fingerprint: string): Promise<AttemptResult> {
     const expectedPolicyHash = clearingPolicyHash(input.standard, input.policy)
@@ -138,6 +147,22 @@ export function createVerdictServer(options: ServiceOptions) {
 
   return createHttpServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost')
+    const requestOrigin = request.headers.origin
+    if (allowedOrigin && requestOrigin === allowedOrigin) {
+      response.setHeader('access-control-allow-origin', allowedOrigin)
+      response.setHeader('vary', 'Origin')
+    }
+    if (request.method === 'OPTIONS' && url.pathname.startsWith('/api/') && requestOrigin === allowedOrigin) {
+      response.writeHead(204, {
+        'access-control-allow-origin': allowedOrigin,
+        'access-control-allow-methods': 'GET',
+        'access-control-allow-headers': 'Accept',
+        'access-control-max-age': '86400',
+        vary: 'Origin',
+      })
+      response.end()
+      return
+    }
     if (request.method === 'GET' && url.pathname === '/health') {
       send(response, 200, { ok: true, service: 'conformance-desk', version: 1 })
       return

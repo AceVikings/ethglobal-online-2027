@@ -8,7 +8,25 @@ on:
 permissions:
   contents: read
 
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  GCP_CLOUD_RUN_SERVICE: ${{ vars.GCP_CLOUD_RUN_SERVICE }}
+  GCP_ARTIFACT_REPOSITORY: ${{ vars.GCP_ARTIFACT_REPOSITORY }}
+  GCP_STATE_BUCKET: ${{ vars.GCP_STATE_BUCKET }}
+  GCP_RUNTIME_SERVICE_ACCOUNT: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+
 jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@f586c14365d4643c6aa59d472ae6e984bf47bb34
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   node:
     runs-on: ubuntu-latest
     steps:
@@ -26,3 +44,58 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09
       - run: forge test --root contracts
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [secrets, node, solidity]
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+
+      - name: Build immutable image
+        run: >-
+          gcloud builds submit
+          --quiet
+          --project "$GCP_PROJECT_ID"
+          --tag "$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$GCP_ARTIFACT_REPOSITORY/api:$GITHUB_SHA"
+          .
+
+      - name: Deploy revision
+        run: >-
+          gcloud run deploy "$GCP_CLOUD_RUN_SERVICE"
+          --quiet
+          --project "$GCP_PROJECT_ID"
+          --region "$GCP_REGION"
+          --image "$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$GCP_ARTIFACT_REPOSITORY/api:$GITHUB_SHA"
+          --service-account "$GCP_RUNTIME_SERVICE_ACCOUNT"
+          --execution-environment gen2
+          --cpu 1
+          --memory 512Mi
+          --concurrency 20
+          --min 0
+          --max-instances 1
+          --port 8080
+          --set-env-vars "HOST=0.0.0.0,CARETAKER_STATE_FILE=/data/caretaker-state.json,GRAPH_GATEWAY_BASE=https://gateway.thegraph.com/api/deployments/id,GRAPH_MCP_URL=https://subgraphs.mcp.thegraph.com/sse,X402_FACILITATOR_URL=https://api.testnet.blocky402.com,X402_NETWORK=hedera:testnet,X402_PRICE_USDC=0.01,X402_PAY_TO=${{ vars.X402_PAY_TO }},ATS_SECURITY_ID=${{ vars.ATS_SECURITY_ID }},HCS_TOPIC_ID=${{ vars.HCS_TOPIC_ID }},EQUITY_NAME=Spokane Private Credit Fund,EQUITY_SYMBOL=SPCF"
+          --set-secrets "GRAPH_STUDIO_KEY=graph-studio-key:latest,VERDICT_SIGNER_KEY=verdict-signer-key:latest"
+          --add-volume "name=state,type=cloud-storage,bucket=$GCP_STATE_BUCKET,readonly=true"
+          --add-volume-mount "volume=state,mount-path=/data"
+
+      - name: Smoke test deployed revision
+        run: |
+          service_url="$(gcloud run services describe "$GCP_CLOUD_RUN_SERVICE" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 3 "$service_url/health"
