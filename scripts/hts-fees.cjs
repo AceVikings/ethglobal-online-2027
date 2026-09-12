@@ -10,12 +10,12 @@ run(async () => {
     name: 'Conformance USD', symbol: 'cUSD', decimals: 6, initialSupply: '1000000000000',
     fixedFee: { amountTinybar: process.env.FIXED_FEE_TINYBAR || '1000000', collector: process.env.FEE_COLLECTOR_ID || '<FEE_COLLECTOR_ID>' },
     fractionalFee: { numerator: 1, denominator: 100, minimum: 1, maximum: 1000000, collector: process.env.REVENUE_COLLECTOR_ID || '<REVENUE_COLLECTOR_ID>' },
-    note: 'Circle testnet USDC fee schedule is immutable to us; this creates a demo settlement HTS token whose treasury can set custom fees.',
+    note: 'Circle testnet USDC is not mutable by this project. This creates a candidate demo HTS token; it is not in the x402 settlement path unless the payment adapter is explicitly configured to use its token ID.',
   }
   if (!execute) return output({ mode: 'dry-run', action: 'TokenCreateTransaction', plan })
   const feeCollector = required(process.env, 'FEE_COLLECTOR_ID')
   const revenueCollector = required(process.env, 'REVENUE_COLLECTOR_ID')
-  const sdk = require('@hashgraph/sdk')
+  const sdk = require('@hiero-ledger/sdk')
   const client = hederaClient(config)
   try {
     const operatorKey = sdk.PrivateKey.fromStringECDSA(config.operatorKey)

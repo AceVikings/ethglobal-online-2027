@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict'
 
-const { ATS_ROLES, executeRequested, loadConfig, connectAts, output, run, txId } = require('./lib/common.cjs')
+const { ATS_ROLES, BYTES32, assertMatch, executeRequested, loadConfig, connectAts, output, run, txId } = require('./lib/common.cjs')
 
 const CONFIG_ID = `0x${'0'.repeat(63)}2`
 
@@ -21,10 +21,12 @@ run(async () => {
     countries: '', info: 'Graph-signal-gated testnet bond', configId: process.env.ATS_BOND_CONFIG_ID || CONFIG_ID,
     configVersion: Number(process.env.ATS_CONFIG_VERSION || 1),
   }
+  assertMatch(request.configId, BYTES32, 'ATS_BOND_CONFIG_ID')
   if (!execute) return output({ mode: 'dry-run', action: 'Bond.create', request })
   const { ats } = await connectAts(config)
   const result = await ats.Bond.create(new ats.CreateBondRequest(request))
   const securityId = result.security?.diamondAddress || result.security?.id
+  if (!securityId) throw new Error('ATS Bond.create returned no security id')
   const roles = [ATS_ROLES.BOND_MANAGER, ATS_ROLES.CORPORATE_ACTIONS, ATS_ROLES.CONTROL_LIST]
   const roleResult = await ats.Role.applyRoles(new ats.ApplyRolesRequest({ securityId, targetId: config.operatorId, roles, actives: roles.map(() => true) }))
   output({ mode: 'execute', securityId, createTxId: txId(result), rolesTxId: txId(roleResult) })

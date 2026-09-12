@@ -3,8 +3,8 @@
 const { Wallet, JsonRpcProvider, Interface } = require('ethers')
 
 // ATS v8 publishes SecurityRole in its declarations but not from its CommonJS
-// entrypoint. Keep the three audited role hashes we use explicit until upstream
-// exports the enum in CJS.
+// entrypoint. Keep the four role hashes pinned to the v8.0.0 declarations until
+// upstream exports the enum in CJS.
 const ATS_ROLES = Object.freeze({
   ISSUER: '0x5eeaf5602c75bf26e73b5206d0bd6ee82f621166255e5fd73cc06bc7bd84a95f',
   CONTROL_LIST: '0x6ed9a91e996c6475ecdc28ecbdbe9bd1122fc62b30cdbe6da8271884b51ec74d',

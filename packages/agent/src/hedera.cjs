@@ -4,12 +4,12 @@ const { Contract, JsonRpcProvider, Wallet } = require('ethers')
 const GATE_ABI = ['function record(bytes32,uint8,bytes32,bytes32,bytes)', 'function recorded(bytes32) view returns (bool)']
 
 function hederaClient(config) {
-  const { Client, AccountId, PrivateKey } = require('@hashgraph/sdk')
+  const { Client, AccountId, PrivateKey } = require('@hiero-ledger/sdk')
   return Client.forTestnet().setOperator(AccountId.fromString(config.operatorId), PrivateKey.fromStringECDSA(config.operatorKey))
 }
 
 async function submitHcsMessage(config, topicId, message) {
-  const { TopicMessageSubmitTransaction } = require('@hashgraph/sdk')
+  const { TopicMessageSubmitTransaction } = require('@hiero-ledger/sdk')
   const client = hederaClient(config)
   try {
     const response = await new TopicMessageSubmitTransaction().setTopicId(topicId).setMessage(JSON.stringify(message)).execute(client)
