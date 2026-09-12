@@ -1,0 +1,13 @@
+{
+  "name": "@desk/mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": { "conformance-desk-mcp": "src/index.ts" },
+  "scripts": {
+    "start": "node --experimental-strip-types src/index.ts",
+    "test": "node --experimental-strip-types --test test/*.test.ts"
+  },
+  "dependencies": { "@desk/cli": "0.1.0" },
+  "devDependencies": { "@desk/signal": "0.1.0", "ethers": "^6.13.4" }
+}
