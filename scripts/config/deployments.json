@@ -1,0 +1,8 @@
+[
+  { "protocol": "aave-v3", "network": "ethereum", "deploymentId": "JCNWRypm7FYwV8fx5HhzZPSFaMxgkPuw4TnR3Gpi81zk" },
+  { "protocol": "aave-v3", "network": "polygon", "deploymentId": "6yuf1C49aWEscgk5n9D1DekeG1BCk5Z9imJYJT3sVmAT" },
+  { "protocol": "aave-v3", "network": "arbitrum", "deploymentId": "4xyasjQeREe7PxnF6wVdobZvCw5mhoHZq3T7guRpuNPf" },
+  { "protocol": "aave-v3", "network": "base", "deploymentId": "D7mapexM5ZsQckLJai2FawTKXJ7CqYGKM8PErnS3cJi9" },
+  { "protocol": "compound-v3", "network": "ethereum", "deploymentId": "AwoxEZbiWLvv6e3QdvdMZw4WDURdGbvPfHmZRc8Dpfz9" },
+  { "protocol": "sparklend", "network": "ethereum", "deploymentId": "GbKdmBe4ycCYCQLQSjqGg6UHYoYfbyJyq5WrG35pv1si" }
+]

@@ -1,0 +1,19 @@
+{
+  "name": "@desk/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "src/index.cjs",
+  "scripts": {
+    "test": "node --test test/*.test.cjs"
+  },
+  "dependencies": {
+    "@desk/signal": "0.1.0",
+    "@hashgraph/asset-tokenization-sdk": "8.0.0",
+    "@hashgraph/sdk": "2.81.0",
+    "@x402/core": "2.25.0",
+    "@x402/fetch": "2.25.0",
+    "@x402/hedera": "2.25.0",
+    "ethers": "^6.15.0"
+  }
+}
