@@ -47,7 +47,8 @@ run(async () => {
     topicId: topicId || '<HCS_TOPIC_ID>', mirrorNodeUrl: config.mirrorNodeUrl,
   })
   required(process.env, 'HCS_TOPIC_ID')
-  const provider = new JsonRpcProvider(config.rpcUrl)
+  // Hashio rejects eth_getLogs when ethers includes it in a JSON-RPC batch.
+  const provider = new JsonRpcProvider(config.rpcUrl, undefined, { batchMaxCount: 1 })
   const expectedEscrow = assertMatch(required(process.env, 'CLEARING_ESCROW_ADDRESS'), EVM_ADDRESS, 'CLEARING_ESCROW_ADDRESS')
   const expectedSecurity = assertMatch(required(process.env, 'ATS_SECURITY_EVM_ADDRESS'), EVM_ADDRESS, 'ATS_SECURITY_EVM_ADDRESS')
   const expectedSigner = assertMatch(required(process.env, 'CONFORMANCE_EXPECTED_SIGNER'), EVM_ADDRESS, 'CONFORMANCE_EXPECTED_SIGNER')

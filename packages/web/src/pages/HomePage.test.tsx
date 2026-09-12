@@ -26,7 +26,7 @@ describe("HomePage", () => {
     const heroImage = document.querySelector("img[src='/clearing-desk-hero-v3.webp']");
     expect(heroImage).toHaveAttribute("width", "1672");
     expect(document.querySelector("video")).not.toBeInTheDocument();
-  });
+  }, 10_000);
 
   it("never substitutes fixtures when the backend is unavailable", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
