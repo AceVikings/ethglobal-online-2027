@@ -80,6 +80,7 @@ test('replays a confirmed trade against real HTTP upstream responses', async () 
   assert.equal(requests[0].method, 'POST')
   assert.equal(requests[0].authorization, 'Bearer server-only-key')
   assert.deepEqual(JSON.parse(requests[0].body).variables, { block: 123456 })
+  assert.equal(requests[1].url, '/api/v1/transactions/0.0.101-1789207201-000000001')
   assert.equal(JSON.stringify(report).includes('server-only-key'), false)
 })
 
