@@ -50,7 +50,8 @@ function createEip1193Wallet(wallet) {
 }
 
 async function connectAts(config) {
-  const wallet = new Wallet(config.operatorKey, new JsonRpcProvider(config.rpcUrl))
+  // Hashio rejects eth_getLogs when ethers includes it in a JSON-RPC batch.
+  const wallet = new Wallet(config.operatorKey, new JsonRpcProvider(config.rpcUrl, undefined, { batchMaxCount: 1 }))
   const ethereum = createEip1193Wallet(wallet)
   global.window = { ethereum, addEventListener() {}, removeEventListener() {} }
   global.ethereum = ethereum
@@ -133,6 +134,7 @@ const CLEARING_ESCROW_ABI = Object.freeze([
 const ATS_HOLD_ABI = Object.freeze([
   'function getHoldForByPartition((bytes32 partition,address tokenHolder,uint256 holdId) hold) view returns (uint256 amount,uint256 expirationTimestamp,address escrow,address destination,bytes data,bytes operatorData,uint8 thirdPartyType)',
   'function balanceOf(address account) view returns (uint256)',
+  'event HoldByPartitionReclaimed(address indexed operator,address indexed tokenHolder,bytes32 indexed partition,uint256 holdId,uint256 amount)',
 ])
 
 function createHoldReader(runner, securityAddress) {
@@ -154,6 +156,25 @@ function createHoldReader(runner, securityAddress) {
       const [sellerBalance, buyerBalance] = await Promise.all([contract.balanceOf(seller), contract.balanceOf(buyer)])
       return { seller: sellerBalance.toString(), buyer: buyerBalance.toString() }
     },
+    async findReclaim({ partition, seller, holdId, amount }) {
+      const latestBlock = await runner.getBlockNumber()
+      const events = await contract.queryFilter(
+        contract.filters.HoldByPartitionReclaimed(null, seller, partition),
+        Math.max(0, latestBlock - 100000),
+        latestBlock,
+      )
+      const event = events.findLast((candidate) =>
+        candidate.args.holdId.toString() === String(holdId) && candidate.args.amount.toString() === String(amount))
+      return event ? {
+        operator: event.args.operator,
+        tokenHolder: event.args.tokenHolder,
+        partition: event.args.partition,
+        holdId: event.args.holdId.toString(),
+        amount: event.args.amount.toString(),
+        transactionHash: event.transactionHash,
+        blockNumber: event.blockNumber,
+      } : null
+    },
   }
 }
 
@@ -161,12 +182,17 @@ function createClearingEscrowAdapter(runner, escrowAddress) {
   if (!runner) throw new Error('A provider or signer is required for ClearingEscrow')
   if (!escrowAddress) throw new Error('ClearingEscrow address is required')
   const contract = new Contract(escrowAddress, CLEARING_ESCROW_ABI, runner)
+  const provider = runner.provider || runner
+  const recentEvents = async (filter) => {
+    const latestBlock = await provider.getBlockNumber()
+    return contract.queryFilter(filter, Math.max(0, latestBlock - 100000), latestBlock)
+  }
   return {
     settle: (authorization, signature) => contract.settle(authorization, signature),
     isNonceUsed: (nonce) => contract.usedNonces(nonce),
     hashAuthorization: (authorization) => contract.hashAuthorization(authorization),
     async findSettlement(authorization) {
-      const events = await contract.queryFilter(
+      const events = await recentEvents(
         contract.filters.HoldSettled(null, authorization.security, authorization.holdId),
       )
       const event = events.find((candidate) =>
@@ -177,7 +203,7 @@ function createClearingEscrowAdapter(runner, escrowAddress) {
       return event ? { tradeDigest: event.args.tradeDigest, transactionHash: event.transactionHash } : null
     },
     async findSettlementByDigest(tradeDigest) {
-      const events = await contract.queryFilter(contract.filters.HoldSettled(tradeDigest))
+      const events = await recentEvents(contract.filters.HoldSettled(tradeDigest))
       const event = events.at(-1)
       return event ? { args: event.args, tradeDigest: event.args.tradeDigest, transactionHash: event.transactionHash } : null
     },

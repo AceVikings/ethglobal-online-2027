@@ -1,188 +1,185 @@
-# End-to-end test plan
+# End-to-end demo runbook
 
-This runbook proves the live Conformance Desk path without treating a local mock, a submitted
-transaction, or a passing process exit as proof of settlement. Run it on Hedera testnet only.
+This is the exact Hedera testnet approval flow used for the demo. It does not treat a fixture,
+submitted transaction, or zero exit code as proof of settlement. The denial branch and tamper cases
+are covered by the contract and agent test suites; a live denial would require a separate escrow and
+hold committed to a denial-producing policy, so it is not part of the presentation run.
 
-## Safety and evidence rules
+## Passing evidence
 
-- Keep secrets in the gitignored `.env`; never write keys, payment headers, or signed payloads to
-  committed logs.
-- Use fresh, distinct ECDSA testnet issuer, seller, and buyer accounts. Fund them only from a free
-  testnet faucet.
-- Stop if any provider requires a paid plan, card, deposit, or mainnet asset.
-- Capture transaction IDs, consensus timestamps, topic sequence numbers, contract addresses, and
-  Graph block/deployment IDs. Redact authorization headers and private keys.
-- Confirm every mutation through Mirror Node or contract state. An SDK response alone is not a
-  passing assertion.
-- Use a unique `E2E_RUN_ID` in memos and evidence filenames so parallel or repeated runs cannot be
-  confused.
+A run passes only when all of these agree:
 
-Store uncommitted evidence under `.context/e2e/<E2E_RUN_ID>/`:
+1. Blocky402 returns a real Circle testnet USDC payment transaction.
+2. The Graph responds from all six pinned live deployments and the Subgraph MCP.
+3. `ClearingEscrow` emits one `HoldSettled` event and consumes the authorization nonce.
+4. The ATS hold reaches zero and the seller/buyer balance delta equals the exact held amount.
+5. Mirror Node indexes the settlement transaction.
+6. HCS replay recomputes the signed authorization and matches the escrow and Mirror records.
+7. The dashboard reads that durable caretaker state through the real seller API.
 
-```text
-preflight.json
-graph.json
-x402.json
-ats-refusal.json
-ats-success.json
-hcs-replay.json
-escrow.json
-summary.json
-```
+Keep all evidence under `.context/e2e/`; it is gitignored. Never put keys, payment headers, or raw
+signed payment payloads in screenshots or committed logs.
 
-## Credential and resource gate
+## Credentials and resources
 
-The run may start only when all required values are present and have been checked without printing
-their secrets.
-
-| Capability | Required values or resource | Preflight assertion |
+| Role | Required values | Preflight assertion |
 | --- | --- | --- |
-| Graph seller | `GRAPH_STUDIO_KEY` | One pinned deployment query succeeds; provider spend limit is zero |
-| Verdict signer | `VERDICT_SIGNER_KEY`, `CONFORMANCE_EXPECTED_SIGNER` | Derived address exactly matches the expected signer |
-| x402 seller | `X402_PAY_TO` | Valid Hedera account ID controlled by the seller |
-| x402 buyer | `HEDERA_OPERATOR_ID`, ECDSA `HEDERA_OPERATOR_KEY` | Mirror Node resolves the account and EVM alias |
-| Testnet funds | HBAR and Circle testnet USDC `0.0.429274` | Balances cover two verdict purchases and network fees |
-| Seller and buyer | Distinct testnet accounts and EVM aliases | Both resolve; neither is the verdict signer or escrow |
-| Reasoner (optional) | `DEEPSEEK_API_KEY`, explicit `DEEPSEEK_MODEL` | One minimal explanation request succeeds on the available free tier |
-| Audit | `HCS_TOPIC_ID`, `CLEARING_ESCROW_ADDRESS` | Topic is readable; escrow signer and policy hash match local config |
-| ATS | `ATS_SECURITY_ID`, partition, seller, buyer, hold ID | Issuer policy is configured and the pending hold names `ClearingEscrow` |
+| Graph seller | `GRAPH_STUDIO_KEY` | Live Gateway query succeeds for every pinned deployment |
+| Verdict authority | `VERDICT_SIGNER_KEY`, `CONFORMANCE_EXPECTED_SIGNER`, `POLICY_HASH` | Key derives the expected signer; escrow reports that signer and policy |
+| x402 seller | `X402_PAY_TO`, `X402_*` settings | Payee is the intended Hedera seller and Blocky advertises the pinned fee payer |
+| Privy payer | `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_WALLET_ID`, `PRIVY_HEDERA_ACCOUNT_ID` | Wallet address resolves to the public key controlling the Hedera buyer account |
+| Hedera relayer | `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY` | Distinct ECDSA account can relay the escrow transaction; it is not the payer |
+| ATS seller | `HEDERA_SELLER_ID`, `HEDERA_SELLER_KEY`, `SELLER_EVM_ADDRESS` | Key matches the seller that owns or holds the fund units |
+| ATS trade | security, partition, buyer, escrow, and `.context/ats-hold.json` | Stored identity exactly matches `.env` and live ATS state |
+| Audit | `HCS_TOPIC_ID` | Topic exists and has the expected submit key |
+| Optional explanation | `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL` | Absence or failure cannot change the deterministic action |
 
-Run the normal offline gate before spending testnet resources:
+The Privy payer needs HBAR for account operation and Circle testnet USDC `0.0.429274` for the paid
+request. Use only free faucets. Stop if any provider asks for a card, deposit, or mainnet asset.
+
+## 1. Prepare an isolated run
+
+From the repository root:
 
 ```bash
 npm ci --ignore-scripts
+test -f .env || cp .env.example .env # then fill it locally
+export E2E_RUN_ID="demo-$(date -u +%Y%m%dT%H%M%SZ)"
+export CARETAKER_STATE_FILE=".context/e2e/$E2E_RUN_ID/caretaker-state.json"
+mkdir -p ".context/e2e/$E2E_RUN_ID"
 npm run check
-node scripts/run-caretaker.cjs
-node scripts/replay.cjs
+npm run build
 ```
 
-## Stage 1: public infrastructure smoke
+The clean gate is 149 Node/browser tests, 15 Foundry tests, and a successful web production build.
 
-1. Fetch Blocky402 `/supported` and require x402 v2, `exact`, `hedera:testnet`, and fee payer
-   `0.0.7162784`.
-2. Query Hashio for chain ID 296.
-3. Query Mirror Node for the issuer, seller, buyer, HCS topic, ATS security, and escrow contract.
-4. Record response timestamps and identifiers in `preflight.json`.
-
-Pass: every endpoint agrees on testnet and every configured ID resolves. This stage performs no
-mutation.
-
-## Stage 2: live Graph evaluation and signed verdict
-
-Start the seller locally, then request one verdict directly through its evaluator test seam or a
-protected request whose payment has not yet been submitted.
-
-Assertions:
-
-- all six pinned Messari Lending v3.1 deployment IDs are queried;
-- MCP schema, discovery, and 30-day query-count calls return successfully;
-- the target `_meta.deployment` equals its pinned deployment ID;
-- the five checks, verdict, query hash, and indexed block are present;
-- raw market rows and `GRAPH_STUDIO_KEY` are absent from the response;
-- the signature recovers exactly `CONFORMANCE_EXPECTED_SIGNER`;
-- repeating the same canonical payload produces the same signal hash;
-- a wrong deployment ID, stale block bound, and signer mismatch each fail closed.
-
-Pass: a live response is cryptographically verifiable and contains only derived evidence. Save a
-redacted response plus the six deployment IDs and observed blocks in `graph.json`.
-
-## Stage 3: x402 challenge, payment, and settlement
-
-Use the CLI buyer against the local seller at a price of `0.01` testnet USDC.
-
-Assertions:
-
-1. An unsigned request returns HTTP 402 and declares only the pinned network, scheme, USDC asset,
-   pay-to account, and Blocky fee payer.
-2. The buyer rejects altered network, asset, pay-to account, fee payer, and a price above
-   `X402_MAX_PRICE` before signing.
-3. A valid buyer request results in exactly one settlement attempt.
-4. The seller returns no verdict when verification or settlement fails.
-5. On success, the returned payment transaction ID exists on Mirror Node, transfers the expected
-   USDC amount to `X402_PAY_TO`, and is the payment reference committed by the decision record.
-6. Reusing the same payment authorization cannot buy a second verdict.
-
-Pass: balances and the Mirror Node transaction prove one exact testnet-USDC settlement. Save IDs,
-amounts, pre/post balances, and redacted requirements in `x402.json`.
-
-## Stage 4: held-trade denial
-
-Create a signed `NON_CONFORMANT`, `STALE`, or `DISAGREEMENT` result from a controlled live policy
-condition, not by editing the returned verdict. The seller first creates an ATS hold for the exact
-buyer and amount with `ClearingEscrow` as its escrow.
-
-Assertions:
-
-- the deterministic action is `RELEASE`; DeepSeek may explain it but a conflicting recommendation
-  is recorded and cannot change the action;
-- `ClearingEscrow` releases the exact hold and consumes the authorization nonce;
-- no units move to the buyer and the seller's available balance increases by the released amount;
-- a second submission of the same authorization reverts;
-- HCS and the escrow event agree on trade digest, action, evidence hash, and payment reference.
-
-Pass: Mirror Node and ATS state prove release without a buyer balance change, while both audit
-records identify the denial. Save evidence in `ats-refusal.json`.
-
-## Stage 5: conformant execution
-
-Create a fresh hold for a live target that satisfies every check, then run:
+## 2. Verify live public infrastructure
 
 ```bash
-node scripts/run-caretaker.cjs --execute
+curl -fsS https://api.testnet.blocky402.com/supported
+curl -fsS https://testnet.hashio.io/api \
+  -H 'content-type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'
+curl -fsS 'https://testnet.mirrornode.hedera.com/api/v1/accounts/0.0.10506237/tokens?token.id=0.0.429274&limit=1'
 ```
 
-Assertions:
+Require x402 v2, scheme `exact`, network `hedera:testnet`, fee payer `0.0.7162784`, Hashio chain ID
+`0x128` (296), and a non-zero buyer USDC balance. A missing token row is a hard stop.
 
-- the purchased verdict is `CONFORMANT` and its signer matches the configured signer;
-- the deterministic action is `EXECUTE`; the model can explain but cannot change it;
-- `ClearingEscrow` validates chain, security, partition, seller, buyer, amount, hold ID, hold expiry,
-  policy hash, evidence hash, payment reference, authorization expiry, signer, and nonce;
-- ATS executes the held amount directly to the named buyer and the nonce becomes unusable;
-- altered buyer, amount, hold ID, action, or evidence fields each revert without an ATS mutation;
-- HCS anchoring is attempted after finality; an anchor failure is reported as degraded audit state,
-  never as a failed or duplicated settlement.
-
-Pass: Mirror Node proves one hold execution and the exact seller/buyer balance delta. Save evidence
-in `ats-success.json`.
-
-## Stage 6: audit replay and replay protection
-
-Run:
+## 3. Exercise The Graph live
 
 ```bash
-node scripts/replay.cjs --execute
+E2E_RUN_ID="$E2E_RUN_ID" node --env-file=.env scripts/sweep.cjs --execute
 ```
 
-Assertions:
+Pass only when `checked` and `healthy` are both `6`. The command stores provider timestamps,
+deployment IDs, blocks, and health under `.context/e2e/$E2E_RUN_ID/graph.json` without raw rows or
+the API key.
 
-- every version-2 `CLEARING_DECISION` message recomputes to its published digest;
-- the successful and refusal messages have distinct sequence numbers and correct operation labels;
-- each escrow event matches the HCS trade digest, action, policy hash, evidence hash, and payment
-  reference;
-- the authorization nonce is consumed after the first settlement;
-- submitting the same authorization again reverts and emits no second settlement event;
-- corrupted HCS content fails local replay validation.
+## 4. Recover an expired prepared hold if necessary
 
-Pass: `failed` is zero for genuine topic messages, the escrow rejects replay, and cross-record
-fields match. Save the replay output and event query as `hcs-replay.json` and `escrow.json`.
+First run the caretaker preview:
 
-## Final acceptance matrix
+```bash
+CARETAKER_STATE_FILE="$CARETAKER_STATE_FILE" \
+  node --env-file=.env --experimental-strip-types scripts/run-caretaker.cjs
+```
 
-The run is complete only when `summary.json` links every assertion to evidence and all rows below
-pass.
+If the stored hold is still live, continue. If it expired, reclaim and replace it:
 
-| Path | Required result |
-| --- | --- |
-| Offline regression | Node and Solidity suites pass from a clean install |
-| Live Graph | Six deployments queried; derived signed verdict verified |
-| x402 negative | Tampered requirements and failed settlement return no verdict |
-| x402 positive | One exact USDC settlement confirmed on Mirror Node |
-| ATS denial | Exact hold released; buyer balance unchanged |
-| ATS approval | Exact hold executed once; seller/buyer balance delta confirmed |
-| Tamper resistance | Altered authorization fields revert before ATS mutation |
-| HCS | Both decisions replay with valid digests |
-| Escrow | Events match HCS and duplicate authorization nonce reverts |
+```bash
+ATS_HOLD_RECLAIM_FILE=".context/e2e/$E2E_RUN_ID/ats-hold-reclaim.json" \
+  node --env-file=.env scripts/reclaim-hold.cjs
+ATS_HOLD_RECLAIM_FILE=".context/e2e/$E2E_RUN_ID/ats-hold-reclaim.json" \
+  node --env-file=.env scripts/reclaim-hold.cjs --execute
+ATS_HOLD_EXPIRY="$(( $(date +%s) + 3600 ))" \
+  node --env-file=.env scripts/create-hold.cjs --execute
+```
 
-Do not describe the project as end-to-end verified until this matrix has been completed against live
-testnet resources. Testnet transaction fees are not fiat payments, but the run must still stop if the
-free faucet or provider free tiers are unavailable.
+The reclaim refuses an unexpired or identity-mismatched hold, signs only with the seller, and
+publishes evidence only after the live amount is zero.
+
+## 5. Start the real API and dashboard
+
+Terminal A:
+
+```bash
+CARETAKER_STATE_FILE="$CARETAKER_STATE_FILE" npm run start:service
+```
+
+Terminal B:
+
+```bash
+npm run dev --workspace @desk/web
+```
+
+Before settlement these must return an empty real read model, never a fixture:
+
+```bash
+curl -fsS http://127.0.0.1:4020/api/v1/trades
+curl -fsS http://127.0.0.1:5173/api/v1/trades
+```
+
+## 6. Execute exactly one paid clearing
+
+Terminal C, with the same exported run variables:
+
+```bash
+CARETAKER_STATE_FILE="$CARETAKER_STATE_FILE" \
+  node --env-file=.env --experimental-strip-types scripts/run-caretaker.cjs --execute
+```
+
+The command is checkpointed. If the process stops after payment or after contract submission, rerun
+the identical command with the same state file; it resumes instead of paying or settling twice.
+
+Require the final state to report:
+
+- a settled Blocky payment reference;
+- `CONFORMANT` and action `APPROVE`;
+- lifecycle `EXECUTED`;
+- one escrow transaction hash and trade digest;
+- nonce consumed;
+- hold amount zero;
+- seller decrease and buyer increase equal to the stored raw hold amount;
+- Mirror transaction ID;
+- HCS sequence metadata, or an explicit degraded audit status if HCS alone failed.
+
+HCS degradation does not falsify an otherwise final settlement, but the Hedera audit-trail bonus is
+not demonstrated until the anchor succeeds.
+
+## 7. Independently replay public evidence
+
+```bash
+node --env-file=.env scripts/replay.cjs --execute
+```
+
+Pass only when `checked` is at least `1`, `failed` is `0`, and every row confirms signature, trade
+digest, payment reference, authorization pins, action, nonce, contract event, Mirror finality, and
+consumed ATS hold. Zero topic messages exits non-zero by design.
+
+## 8. Verify the visual demo
+
+Open `http://127.0.0.1:5173` and verify:
+
+- the completed trade appears without a refresh after API polling;
+- its amount, action, protocol, lifecycle, and transaction links match the caretaker state;
+- the timeline reaches payment, evidence, authorization, settlement, and audit in order;
+- opening the trade reveals no secret, raw Graph row, or payment authorization;
+- the browser console has no warning or error.
+
+The same API check should now return exactly the chain-confirmed trade:
+
+```bash
+curl -fsS http://127.0.0.1:4020/api/v1/trades
+curl -fsS http://127.0.0.1:5173/api/v1/trades
+```
+
+## Final submission gates
+
+- Publish the repository only after choosing whether to preserve or squash historical internal docs.
+- Confirm the existing Sourcify creation/runtime exact match still resolves before recording.
+- Record a single uncut demo of the paid request, ATS execution, replay, and dashboard.
+- Link the payment, escrow event, ATS security, and HCS topic in the submission.
+- Rotate every credential that was pasted into chat or used during the demo.
+
+Do not describe the project as end-to-end verified until Steps 1–8 pass in one funded run.

@@ -23,9 +23,10 @@ provided recovery parity or tries both when it is absent. It accepts only the
 compressed public key whose Ethereum address matches Privy's wallet record and
 inserts only `r || s` into Hedera.
 
-The mock-server tests prove the request contract, authentication headers,
-fail-closed errors, public-key recovery, and Hedera transaction signing without
-network access or secrets.
+The test suite uses a local provider double to prove the request contract,
+authentication headers, fail-closed errors, public-key recovery, and exact
+Hedera transaction signing without broadcasting or exposing secrets. That
+double is test-only and is never used by the product or demo path.
 
 Run the non-broadcasting live authentication and raw-sign check with an existing
 server wallet:
@@ -37,11 +38,10 @@ PRIVY_APP_ID=... PRIVY_APP_SECRET=... PRIVY_WALLET_ID=... \
 
 It signs a fixed probe digest, verifies the recovered key against the wallet's
 public address, emits only redacted public identifiers, and never builds or
-broadcasts a transaction. This does **not** prove wallet policy, Hedera account
-provisioning, or Blocky402 settlement live. Those remaining steps are:
-
-1. Create or update a Hedera testnet account so the recovered public key controls it.
-2. Submit the resulting payment through Blocky402 `/verify` and `/settle`.
+broadcasts a transaction. The project has separately live-validated a Hedera
+testnet account controlled by that recovered key. The qualification proof still
+requires a funded x402 request through Blocky402 `/verify` and `/settle`; see the
+root README for current status and public evidence.
 
 References:
 

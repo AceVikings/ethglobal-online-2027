@@ -15,7 +15,9 @@ async function submitHcsMessage(config, topicId, message) {
     if (Buffer.byteLength(encoded) > 1024) throw new Error('HCS audit message exceeds 1024 bytes')
     const response = await new TopicMessageSubmitTransaction().setTopicId(topicId).setMessage(encoded).execute(client)
     const receipt = await response.getReceipt(client)
-    return { transactionId: response.transactionId.toString(), status: receipt.status.toString() }
+    const topicSequenceNumber = receipt.topicSequenceNumber?.toString()
+    if (!topicSequenceNumber) throw new Error('HCS receipt returned no topic sequence number')
+    return { transactionId: response.transactionId.toString(), status: receipt.status.toString(), topicSequenceNumber }
   } finally { client.close() }
 }
 
@@ -29,7 +31,8 @@ async function assertRestrictedTopic(config, topicId, fetchImpl = fetch) {
 }
 
 function hederaEvmSigner(config) {
-  return new Wallet(config.operatorKey, new JsonRpcProvider(config.rpcUrl))
+  // Hashio rejects eth_getLogs when ethers includes it in a JSON-RPC batch.
+  return new Wallet(config.operatorKey, new JsonRpcProvider(config.rpcUrl, undefined, { batchMaxCount: 1 }))
 }
 
 async function mirrorContractResult(config, transactionHash, fetchImpl = fetch) {

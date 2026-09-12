@@ -2,6 +2,8 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 
@@ -85,6 +87,136 @@ test('hold creation is seller-signed and dry-run first', () => {
   assert.equal(result.signer, 'seller-only')
   assert.equal(result.request.escrow, '<CLEARING_ESCROW_ADDRESS>')
   assert.match(result.holdFile, /\.context\/ats-hold\.json$/)
+})
+
+test('expired hold reclaim validates the full trade identity and remains seller-only', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ats-reclaim-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const holdFile = path.join(directory, 'hold.json')
+  const partition = `0x${'0'.repeat(63)}1`
+  const security = `0x${'1'.repeat(40)}`
+  const seller = `0x${'2'.repeat(40)}`
+  const buyer = `0x${'3'.repeat(40)}`
+  const escrow = `0x${'4'.repeat(40)}`
+  fs.writeFileSync(holdFile, JSON.stringify({
+    securityId: '0.0.123', security, partition, seller, buyer, escrow,
+    holdId: '7', amount: '1000000', holdExpiry: '1',
+  }))
+  const result = dryRun('reclaim-hold.cjs', {
+    ATS_HOLD_FILE: holdFile,
+    ATS_SECURITY_ID: '0.0.123',
+    ATS_SECURITY_EVM_ADDRESS: security,
+    ATS_PARTITION: partition,
+    SELLER_EVM_ADDRESS: seller,
+    BUYER_EVM_ADDRESS: buyer,
+    CLEARING_ESCROW_ADDRESS: escrow,
+  })
+  assert.equal(result.action, 'ATS reclaimHoldByPartition')
+  assert.equal(result.signer, 'seller-only')
+  assert.equal(result.request.holdId, '7')
+  assert.equal(result.request.amount, '1000000')
+  assert.match(result.evidenceFile, /\.context\/ats-hold-reclaims\/0-0-123-hold-7-[0-9a-f]{16}\.json$/)
+})
+
+test('hold reclaim rejects an artifact whose identity differs from configuration', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ats-reclaim-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const holdFile = path.join(directory, 'hold.json')
+  const address = (digit) => `0x${digit.repeat(40)}`
+  fs.writeFileSync(holdFile, JSON.stringify({
+    securityId: '0.0.123', security: address('1'), partition: `0x${'0'.repeat(63)}1`,
+    seller: address('2'), buyer: address('3'), escrow: address('4'),
+    holdId: '7', amount: '1000000', holdExpiry: '1',
+  }))
+  const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'reclaim-hold.cjs')], {
+    cwd: root,
+    encoding: 'utf8',
+    env: {
+      PATH: process.env.PATH,
+      ATS_HOLD_FILE: holdFile,
+      ATS_SECURITY_ID: '0.0.999',
+      ATS_SECURITY_EVM_ADDRESS: address('1'),
+      SELLER_EVM_ADDRESS: address('2'),
+      BUYER_EVM_ADDRESS: address('3'),
+      CLEARING_ESCROW_ADDRESS: address('4'),
+    },
+  })
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /ATS_SECURITY_ID does not match ATS_HOLD_FILE/)
+})
+
+test('hold reclaim refuses an unexpired artifact before loading seller credentials', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ats-reclaim-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const holdFile = path.join(directory, 'hold.json')
+  const address = (digit) => `0x${digit.repeat(40)}`
+  fs.writeFileSync(holdFile, JSON.stringify({
+    securityId: '0.0.123', security: address('1'), partition: `0x${'0'.repeat(63)}1`,
+    seller: address('2'), buyer: address('3'), escrow: address('4'),
+    holdId: '7', amount: '1000000', holdExpiry: String(Math.floor(Date.now() / 1000) + 3600),
+  }))
+  const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'reclaim-hold.cjs'), '--execute'], {
+    cwd: root,
+    encoding: 'utf8',
+    env: {
+      PATH: process.env.PATH,
+      ATS_HOLD_FILE: holdFile,
+      ATS_SECURITY_ID: '0.0.123',
+      ATS_SECURITY_EVM_ADDRESS: address('1'),
+      SELLER_EVM_ADDRESS: address('2'),
+      BUYER_EVM_ADDRESS: address('3'),
+      CLEARING_ESCROW_ADDRESS: address('4'),
+    },
+  })
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /ATS hold has not expired/)
+  assert.doesNotMatch(result.stderr, /HEDERA_SELLER_KEY/)
+})
+
+test('live hold reclaim confirms a zero balance before atomically publishing evidence', () => {
+  const source = fs.readFileSync(path.join(root, 'scripts/reclaim-hold.cjs'), 'utf8')
+  assert.match(source, /HEDERA_OPERATOR_KEY: required\(process\.env, 'HEDERA_SELLER_KEY'\)/)
+  assert.doesNotMatch(source, /required\(process\.env, 'HEDERA_OPERATOR_KEY'\)/)
+  assert.match(source, /if \(after\.amount !== '0'\).*atomicWrite\(evidenceFile, artifact\)/s)
+  assert.match(source, /fs\.writeFileSync\(temporary,.*fs\.renameSync\(temporary, file\)/s)
+})
+
+test('zero-amount recovery validates remaining live identity before writing resumed evidence', () => {
+  const source = fs.readFileSync(path.join(root, 'scripts/reclaim-hold.cjs'), 'utf8')
+  assert.match(source, /if \(before\.amount === '0'\).*before\.expirationTimestamp !== '0'.*before\.escrow\.toLowerCase\(\) !== zeroAddress.*before\.destination\.toLowerCase\(\) !== zeroAddress/s)
+  assert.match(source, /if \(before\.amount === '0'\).*reader\.findReclaim.*sameAddress\(reclaim\.operator.*sameAddress\(reclaim\.tokenHolder.*reclaim\.partition.*reclaim\.holdId.*reclaim\.amount/s)
+  assert.match(source, /if \(before\.amount === '0'\).*resumed: true.*amountAfter: '0'.*observedClearedState.*reclaimEvent: reclaim.*atomicWrite\(evidenceFile, artifact\).*return output/s)
+  assert.match(source, /previousEvidence\?\.transactionId \|\| reclaim\.transactionHash/)
+})
+
+test('ATS reader finds an exact reclaim event over a bounded recent block range', () => {
+  const source = fs.readFileSync(path.join(root, 'packages/agent/src/ats.cjs'), 'utf8')
+  assert.match(source, /event HoldByPartitionReclaimed\(address indexed operator,address indexed tokenHolder,bytes32 indexed partition,uint256 holdId,uint256 amount\)/)
+  assert.match(source, /findReclaim.*HoldByPartitionReclaimed\(null, seller, partition\).*latestBlock - 100000.*candidate\.args\.holdId.*candidate\.args\.amount/s)
+})
+
+test('Hedera providers disable JSON-RPC batching for Hashio log compatibility', () => {
+  for (const file of ['packages/agent/src/ats.cjs', 'packages/agent/src/hedera.cjs', 'scripts/replay.cjs']) {
+    const source = fs.readFileSync(path.join(root, file), 'utf8')
+    assert.match(source, /new JsonRpcProvider\([^\n]+batchMaxCount: 1/)
+  }
+})
+
+test('escrow event recovery uses a Hashio-compatible bounded block range', () => {
+  const source = fs.readFileSync(path.join(root, 'packages/agent/src/ats.cjs'), 'utf8')
+  assert.match(source, /recentEvents.*latestBlock - 100000.*findSettlement.*recentEvents.*findSettlementByDigest.*recentEvents/s)
+})
+
+test('HCS anchoring requires and returns the consensus sequence number', () => {
+  const source = fs.readFileSync(path.join(root, 'packages/agent/src/hedera.cjs'), 'utf8')
+  assert.match(source, /receipt\.topicSequenceNumber.*HCS receipt returned no topic sequence number.*topicSequenceNumber/s)
+})
+
+test('reclaim evidence is scoped to a full hold identity and rejects unrelated collisions', () => {
+  const source = fs.readFileSync(path.join(root, 'scripts/reclaim-hold.cjs'), 'utf8')
+  assert.match(source, /createHash\('sha256'\).*identity\.securityId.*identity\.security.*identity\.partition.*identity\.seller.*identity\.buyer.*identity\.escrow.*holdId/s)
+  assert.match(source, /existingEvidence\(evidenceFile, request\)/)
+  assert.match(source, /already contains evidence for a different hold/)
 })
 
 test('equity seeding issues units directly to the distinct seller', () => {
