@@ -6,8 +6,12 @@
   "homepage": "https://github.com/AceVikings/ethglobal-online-2027#readme",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
-  "workspaces": ["packages/*"],
+  "engines": {
+    "node": "22.x"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "test:contracts": "forge test --root contracts",
@@ -23,6 +27,7 @@
   },
   "optionalDependencies": {
     "@tailwindcss/oxide-linux-x64-gnu": "4.3.3",
+    "@typescript/typescript-linux-x64": "^7.0.2",
     "lightningcss-linux-x64-gnu": "1.32.0"
   }
 }
