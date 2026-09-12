@@ -45,7 +45,7 @@ export const tradeFixture: Trade = {
     action: "EXECUTE",
     transactionId: "0.0.200@123.789",
     consensusAt: "2026-09-12T14:43:00.000Z",
-    contractEvent: "HoldExecuted",
+    contractEvent: "HoldSettled",
     hcsTopicId: "0.0.300",
     hcsSequenceNumber: 4,
   },

@@ -155,7 +155,7 @@ node scripts/replay.cjs --execute
 
 Assertions:
 
-- every version-1 `DECISION` message recomputes to its published digest;
+- every version-2 `CLEARING_DECISION` message recomputes to its published digest;
 - the successful and refusal messages have distinct sequence numbers and correct operation labels;
 - each escrow event matches the HCS trade digest, action, policy hash, evidence hash, and payment
   reference;

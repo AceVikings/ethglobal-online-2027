@@ -20,6 +20,13 @@ function positiveUint(env, key, fallback) {
   return value
 }
 
+function pinnedArtifact(artifact, artifactKey, envKey, pattern, label = envKey) {
+  const value = assertMatch(required(artifact, artifactKey), pattern, `ATS hold ${artifactKey}`)
+  const pinned = assertMatch(required(process.env, envKey), pattern, envKey)
+  if (value.toLowerCase() !== pinned.toLowerCase()) throw new Error(`ATS hold ${artifactKey} does not match ${envKey}`)
+  return value
+}
+
 function stateStore(filename) {
   return {
     load() {
@@ -63,13 +70,13 @@ run(async () => {
   const trade = {
     chainId: Number(process.env.HEDERA_CHAIN_ID || 296),
     verifyingContract: process.env.CLEARING_ESCROW_ADDRESS || holdArtifact.escrow || '<CLEARING_ESCROW_ADDRESS>',
-    security: process.env.ATS_SECURITY_EVM_ADDRESS || holdArtifact.security || '<ATS_SECURITY_EVM_ADDRESS>',
-    partition: process.env.ATS_PARTITION || holdArtifact.partition || `0x${'0'.repeat(63)}1`,
-    seller: process.env.SELLER_EVM_ADDRESS || holdArtifact.seller || '<SELLER_EVM_ADDRESS>',
-    buyer: process.env.BUYER_EVM_ADDRESS || holdArtifact.buyer || '<BUYER_EVM_ADDRESS>',
-    amount: process.env.TRADE_AMOUNT || holdArtifact.amount || '1',
-    holdId: process.env.ATS_HOLD_ID || holdArtifact.holdId || '<ATS_HOLD_ID>',
-    holdExpiry: process.env.ATS_HOLD_EXPIRY || holdArtifact.holdExpiry || '<ATS_HOLD_EXPIRY>',
+    security: holdArtifact.security || process.env.ATS_SECURITY_EVM_ADDRESS || '<ATS_SECURITY_EVM_ADDRESS>',
+    partition: holdArtifact.partition || process.env.ATS_PARTITION || `0x${'0'.repeat(63)}1`,
+    seller: holdArtifact.seller || process.env.SELLER_EVM_ADDRESS || '<SELLER_EVM_ADDRESS>',
+    buyer: holdArtifact.buyer || process.env.BUYER_EVM_ADDRESS || '<BUYER_EVM_ADDRESS>',
+    amount: holdArtifact.amount || process.env.TRADE_AMOUNT || '1',
+    holdId: holdArtifact.holdId || process.env.ATS_HOLD_ID || '<ATS_HOLD_ID>',
+    holdExpiry: holdArtifact.holdExpiry || process.env.ATS_HOLD_EXPIRY || '<ATS_HOLD_EXPIRY>',
     policyHash: process.env.POLICY_HASH || '<POLICY_HASH>',
   }
   const flow = [
@@ -87,18 +94,26 @@ run(async () => {
     flow, preview,
   })
 
+  if (!fs.existsSync(holdFile)) throw new Error('ATS_HOLD_FILE is required for live clearing')
   const topicId = assertMatch(required(process.env, 'HCS_TOPIC_ID'), ENTITY_ID, 'HCS_TOPIC_ID')
   await assertRestrictedTopic(config, topicId)
-  trade.verifyingContract = assertMatch(required(process.env, 'CLEARING_ESCROW_ADDRESS'), EVM_ADDRESS, 'CLEARING_ESCROW_ADDRESS')
-  trade.security = assertMatch(required(process.env, 'ATS_SECURITY_EVM_ADDRESS'), EVM_ADDRESS, 'ATS_SECURITY_EVM_ADDRESS')
-  trade.partition = assertMatch(trade.partition, BYTES32, 'ATS_PARTITION')
-  trade.seller = assertMatch(required(process.env, 'SELLER_EVM_ADDRESS'), EVM_ADDRESS, 'SELLER_EVM_ADDRESS')
-  trade.buyer = assertMatch(required(process.env, 'BUYER_EVM_ADDRESS'), EVM_ADDRESS, 'BUYER_EVM_ADDRESS')
-  trade.amount = positiveUint(process.env, 'TRADE_AMOUNT')
-  trade.holdId = positiveUint(process.env, 'ATS_HOLD_ID')
-  trade.holdExpiry = positiveUint(process.env, 'ATS_HOLD_EXPIRY')
+  trade.verifyingContract = pinnedArtifact(holdArtifact, 'escrow', 'CLEARING_ESCROW_ADDRESS', EVM_ADDRESS)
+  trade.security = pinnedArtifact(holdArtifact, 'security', 'ATS_SECURITY_EVM_ADDRESS', EVM_ADDRESS)
+  trade.partition = pinnedArtifact(holdArtifact, 'partition', 'ATS_PARTITION', BYTES32)
+  trade.seller = pinnedArtifact(holdArtifact, 'seller', 'SELLER_EVM_ADDRESS', EVM_ADDRESS)
+  trade.buyer = pinnedArtifact(holdArtifact, 'buyer', 'BUYER_EVM_ADDRESS', EVM_ADDRESS)
+  // ATS accepts human units when creating a hold but its on-chain read returns
+  // base units. Settlement must bind the exact raw values from that read.
+  trade.amount = positiveUint(holdArtifact, 'amount')
+  trade.holdId = positiveUint(holdArtifact, 'holdId')
+  trade.holdExpiry = positiveUint(holdArtifact, 'holdExpiry')
   trade.policyHash = assertMatch(required(process.env, 'POLICY_HASH'), BYTES32, 'POLICY_HASH')
-  request.subject.deploymentId = required(process.env, 'DEPLOYMENT_ID')
+  if (!process.env.DEPLOYMENT_ID) {
+    const { requireDeployment } = await import('@desk/signal')
+    request.subject.deploymentId = requireDeployment(request.subject.protocol, request.subject.network).deploymentId
+  } else {
+    request.subject.deploymentId = process.env.DEPLOYMENT_ID
+  }
 
   const relayer = hederaEvmSigner(config)
   const hold = createHoldReader(relayer.provider, trade.security)
@@ -139,7 +154,13 @@ run(async () => {
 
   const result = await runClearingTrade({ request, trade, expectedSigner: config.expectedSigner }, {
     expectedSigner: config.expectedSigner,
-    observeHold: () => hold.get({ partition: trade.partition, seller: trade.seller, holdId: trade.holdId }),
+    observeHold: async () => {
+      const [record, balances] = await Promise.all([
+        hold.get({ partition: trade.partition, seller: trade.seller, holdId: trade.holdId }),
+        hold.balances({ seller: trade.seller, buyer: trade.buyer }),
+      ])
+      return { ...record, balances, ...(holdArtifact.createdAt ? { createdAt: holdArtifact.createdAt } : {}) }
+    },
     buyVerdict: (body) => buyVerdict({ url: config.serviceUrl, body, paidFetch }),
     paymentReferenceHash: (paymentTxId) => keccak256(toUtf8Bytes(paymentTxId)),
     verifyAuthorization: verifyClearingAuthorization,
@@ -151,18 +172,26 @@ run(async () => {
       const receipt = await transaction.wait()
       return { transactionHash: receipt.hash, tradeDigest }
     },
-    async confirmSettlement({ authorization, expectedLifecycle, submitted }) {
+    async confirmSettlement({ hold: observed, authorization, expectedLifecycle, submitted }) {
       if (!await escrow.isNonceUsed(authorization.nonce)) return { confirmed: false }
       const event = submitted?.transactionHash ? submitted : await escrow.findSettlement(authorization)
       if (!event?.transactionHash) return { confirmed: false }
       const mirror = await waitForMirror(config, event.transactionHash)
       const remaining = await hold.get({ partition: trade.partition, seller: trade.seller, holdId: trade.holdId })
       if (remaining && BigInt(remaining.amount) > 0n) return { confirmed: false }
+      const after = await hold.balances({ seller: trade.seller, buyer: trade.buyer })
+      const amount = BigInt(authorization.amount)
+      const sellerBefore = BigInt(observed.balances.seller)
+      const buyerBefore = BigInt(observed.balances.buyer)
+      const balancesMatch = authorization.action === 1
+        ? BigInt(after.seller) === sellerBefore - amount && BigInt(after.buyer) === buyerBefore + amount
+        : BigInt(after.seller) === sellerBefore && BigInt(after.buyer) === buyerBefore
+      if (!balancesMatch) return { confirmed: false }
       return {
         confirmed: true, lifecycle: expectedLifecycle,
         transactionHash: event.transactionHash,
         transactionId: mirror.transaction_id,
-        tradeDigest: event.tradeDigest || submitted?.tradeDigest,
+        tradeDigest: event.tradeDigest || submitted?.tradeDigest, balances: { before: observed.balances, after },
       }
     },
     anchorAudit: (message) => submitHcsMessage(config, topicId, message),

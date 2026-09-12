@@ -18,7 +18,7 @@ function dryRun(script, extraEnv = {}) {
 }
 
 test('caretaker dry-run matches seller request and default endpoint', () => {
-  const result = dryRun('run-caretaker.cjs')
+  const result = dryRun('run-caretaker.cjs', { ATS_HOLD_FILE: path.join(root, '.context', 'missing-test-hold.json') })
   assert.equal(result.serviceUrl, 'http://127.0.0.1:4020/verdict')
   assert.equal(result.x402Network, 'hedera:testnet')
   assert.equal(result.preview.request.standard, 'messari/lending-v3.1')
@@ -87,8 +87,26 @@ test('hold creation is seller-signed and dry-run first', () => {
   assert.match(result.holdFile, /\.context\/ats-hold\.json$/)
 })
 
+test('equity seeding issues units directly to the distinct seller', () => {
+  const result = dryRun('seed-equity.cjs')
+  assert.equal(result.action, 'ATS Security.issue')
+  assert.equal(result.request.amount, '1')
+  assert.equal(result.request.sellerId, '<HEDERA_SELLER_ID>')
+})
+
 test('replay dry-run verifies clearing evidence instead of the retired gate record', () => {
   const result = dryRun('replay.cjs')
   assert.match(result.action, /signature, escrow event, Mirror result, and ATS hold state/)
   assert.equal(result.action.includes('ConformanceGate'), false)
+})
+
+test('caretaker live source binds raw ATS hold values rather than human-unit env input', () => {
+  const source = require('node:fs').readFileSync(path.join(root, 'scripts/run-caretaker.cjs'), 'utf8')
+  assert.match(source, /positiveUint\(holdArtifact, 'amount'\)/)
+  assert.doesNotMatch(source, /positiveUint\(process\.env, 'TRADE_AMOUNT'\)/)
+})
+
+test('replay fails closed when the restricted topic has no clearing messages', () => {
+  const source = require('node:fs').readFileSync(path.join(root, 'scripts/replay.cjs'), 'utf8')
+  assert.match(source, /rows\.length === 0.*exitCode = 3/s)
 })

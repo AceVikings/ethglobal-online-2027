@@ -24,7 +24,7 @@ describe("DecisionPage", () => {
   });
 
   it("shows a denied trade as a real release with no units transferred", async () => {
-    const released = { ...tradeFixture, state: "RELEASED" as const, verdict: "DENY" as const, decision: { ...tradeFixture.decision!, checks: [{ code: "FRESHNESS", label: "Evidence freshness", result: "FAIL" as const, publicValue: "73 / 50 blocks" }] }, settlement: { ...tradeFixture.settlement!, action: "RELEASE" as const, contractEvent: "HoldReleased" } };
+    const released = { ...tradeFixture, state: "RELEASED" as const, verdict: "DENY" as const, decision: { ...tradeFixture.decision!, checks: [{ code: "FRESHNESS", label: "Evidence freshness", result: "FAIL" as const, publicValue: "73 / 50 blocks" }] }, settlement: { ...tradeFixture.settlement!, action: "RELEASE" as const, contractEvent: "HoldSettled" } };
     renderTrade(released);
     expect(await screen.findByText("Released")).toBeInTheDocument();
     expect(screen.getByText("Exact hold released")).toBeInTheDocument();

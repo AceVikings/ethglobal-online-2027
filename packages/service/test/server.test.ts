@@ -77,6 +77,14 @@ test('health is free and exposes no secrets', async () => {
   assert.deepEqual(await response.json(), { ok: true, service: 'conformance-desk', version: 1 })
 })
 
+test('public trade routes are empty rather than mocked when no read model is configured', async () => {
+  const response = await fetch(`${base}/api/v1/trades?limit=20`)
+  assert.equal(response.status, 200)
+  assert.deepEqual(await response.json(), { trades: [], nextCursor: null })
+  const missing = await fetch(`${base}/api/v1/trades/0xdeadbeef`)
+  assert.equal(missing.status, 404)
+})
+
 test('verdict is payment gated', async () => {
   const response = await fetch(`${base}/verdict`, { method: 'POST', body: JSON.stringify(body) })
   assert.equal(response.status, 402)

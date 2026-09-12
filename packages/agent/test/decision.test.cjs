@@ -63,6 +63,10 @@ test('approval executes the exact hold once and records an audit', async () => {
   const f = dependencies(1)
   const result = await runClearingTrade({ trade: f.trade, request: { trade: f.trade } }, f.deps)
   assert.equal(result.phase, CLEARING_PHASE.COMPLETE)
+  assert.deepEqual(result.transitions.map((transition) => transition.phase), [
+    CLEARING_PHASE.HOLD_CONFIRMED, CLEARING_PHASE.PAID, CLEARING_PHASE.AUTHORIZED,
+    CLEARING_PHASE.SETTLEMENT_SUBMITTED, CLEARING_PHASE.SETTLED, CLEARING_PHASE.COMPLETE,
+  ])
   assert.equal(result.lifecycle, 'EXECUTED')
   assert.equal(result.audit.status, 'ANCHORED')
   assert.equal(Buffer.byteLength(JSON.stringify(result.audit.message)) <= 1024, true)

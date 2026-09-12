@@ -36,14 +36,16 @@ export function HomePage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setDesk({ status: "loading", data: null });
-    fetchTrades(controller.signal)
+    const refresh = () => fetchTrades(controller.signal)
       .then((data) => setDesk({ status: "ready", data }))
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setDesk({ status: "error", data: null });
       });
-    return () => controller.abort();
+    setDesk({ status: "loading", data: null });
+    void refresh();
+    const timer = window.setInterval(refresh, 2_000);
+    return () => { controller.abort(); window.clearInterval(timer); };
   }, [reloadKey]);
 
   const metrics = desk.status === "ready" ? (() => {

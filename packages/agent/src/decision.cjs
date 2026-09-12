@@ -134,7 +134,9 @@ async function persist(state, deps) {
 }
 
 async function transition(state, phase, patch, deps) {
-  Object.assign(state, patch, { phase })
+  const occurredAt = (deps.now ? deps.now() : new Date()).toISOString()
+  const transitions = [...(state.transitions || []), { phase, occurredAt }]
+  Object.assign(state, patch, { phase, transitions, updatedAt: occurredAt })
   return persist(state, deps)
 }
 
@@ -143,6 +145,7 @@ async function confirmFinalState(state, input, deps) {
   const expectedLifecycle = state.authorization.action === CLEARING_ACTION.APPROVE ? 'EXECUTED' : 'RELEASED'
   const settlement = await deps.confirmSettlement({
     trade: input.trade,
+    hold: state.hold,
     authorization: state.authorization,
     expectedLifecycle,
     submitted: state.submitted || null,

@@ -114,5 +114,6 @@ run(async () => {
     failed: rows.filter((row) => !row.pass).length,
     rows,
   })
-  if (rows.some((row) => !row.pass)) process.exitCode = 2
+  if (rows.length === 0) process.exitCode = 3
+  else if (rows.some((row) => !row.pass)) process.exitCode = 2
 })

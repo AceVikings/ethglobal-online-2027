@@ -13,6 +13,7 @@ import {
 } from '@desk/signal'
 import { parseVerdictRequest } from './policy.ts'
 import type { PaymentGate, VerdictEvaluator, VerdictRequest } from './types.ts'
+import type { TradeReadModel } from './trades.ts'
 
 const MAX_BODY_BYTES = 16 * 1024
 
@@ -24,6 +25,7 @@ export interface ServiceOptions {
   requestId?: () => string
   nonce?: () => string
   authorizationTtlSeconds?: number
+  trades?: TradeReadModel
 }
 
 interface CompletedResponse {
@@ -138,6 +140,18 @@ export function createVerdictServer(options: ServiceOptions) {
     const url = new URL(request.url ?? '/', 'http://localhost')
     if (request.method === 'GET' && url.pathname === '/health') {
       send(response, 200, { ok: true, service: 'conformance-desk', version: 1 })
+      return
+    }
+    if (request.method === 'GET' && url.pathname === '/api/v1/trades') {
+      send(response, 200, options.trades ? await options.trades.list() : { trades: [], nextCursor: null })
+      return
+    }
+    const tradePath = url.pathname.match(/^\/api\/v1\/trades\/([^/]+)(\/events)?$/)
+    if (request.method === 'GET' && tradePath) {
+      const digest = decodeURIComponent(tradePath[1])
+      const body = tradePath[2] ? await options.trades?.events(digest) : await options.trades?.get(digest)
+      if (body) send(response, 200, body)
+      else send(response, 404, { error: 'trade_not_found' })
       return
     }
     if (request.method !== 'POST' || url.pathname !== '/verdict') {

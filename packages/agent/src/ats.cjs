@@ -1,6 +1,7 @@
 'use strict'
 
 const { Wallet, JsonRpcProvider, Contract } = require('ethers')
+const path = require('node:path')
 
 // ATS v8 publishes SecurityRole in its declarations but not from its CommonJS
 // entrypoint. Keep the four role hashes pinned to the v8.0.0 declarations until
@@ -13,11 +14,46 @@ const ATS_ROLES = Object.freeze({
 })
 
 function loadAts() {
-  if (typeof global.window === 'undefined') global.window = {}
+  if (typeof global.window === 'undefined') {
+    global.window = { addEventListener() {}, removeEventListener() {} }
+  }
   return require('@hashgraph/asset-tokenization-sdk')
 }
 
+function createEip1193Wallet(wallet) {
+  if (!wallet?.provider) throw new Error('ATS wallet requires a JSON-RPC provider')
+  const address = wallet.address
+  return {
+    isMetaMask: true,
+    isConnected: () => true,
+    on() {},
+    removeListener() {},
+    async request({ method, params = [] }) {
+      if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [address]
+      if (method === 'eth_chainId') return '0x128'
+      if (method === 'eth_sendTransaction') {
+        const [request] = params
+        if (!request || request.from?.toLowerCase() !== address.toLowerCase()) {
+          throw new Error('ATS transaction sender does not match the configured operator')
+        }
+        const transaction = await wallet.sendTransaction({
+          to: request.to,
+          data: request.data,
+          value: request.value,
+          gasLimit: request.gas,
+        })
+        return transaction.hash
+      }
+      return wallet.provider.send(method, params)
+    },
+  }
+}
+
 async function connectAts(config) {
+  const wallet = new Wallet(config.operatorKey, new JsonRpcProvider(config.rpcUrl))
+  const ethereum = createEip1193Wallet(wallet)
+  global.window = { ethereum, addEventListener() {}, removeEventListener() {} }
+  global.ethereum = ethereum
   const ats = loadAts()
   // MirrorNode and JsonRpcRelay are likewise omitted from the CJS exports;
   // ConnectRequest accepts their public structural shape.
@@ -27,11 +63,17 @@ async function connectAts(config) {
     network: 'testnet', mirrorNode, rpcNode,
     configuration: { factoryAddress: config.factoryId, resolverAddress: config.resolverId },
   }))
-  const wallet = new Wallet(config.operatorKey, new JsonRpcProvider(config.rpcUrl))
   await ats.Network.connect(new ats.ConnectRequest({
     account: { accountId: config.operatorId, privateKey: { key: config.operatorKey, type: 'ECDSA' }, evmAddress: wallet.address },
-    network: 'testnet', mirrorNode, rpcNode, wallet: ats.SupportedWallets.METAMASK, debug: false,
+    network: 'testnet', mirrorNode, rpcNode, wallet: ats.SupportedWallets.METAMASK, debug: true,
   }))
+  // ATS v8 exposes only the MetaMask adapter for JSON-RPC signing. In debug
+  // mode it registers that adapter without pairing a browser wallet; inject the
+  // server-side ethers signer into the registered adapter. The dependency is
+  // version-pinned because this internal hook is not part of ATS's public CJS API.
+  const atsRoot = path.dirname(require.resolve('@hashgraph/asset-tokenization-sdk'))
+  const Injectable = require(path.join(atsRoot, 'core/injectable/Injectable.js')).default
+  Injectable.resolveTransactionHandler().setSignerOrProvider(wallet)
   return { ats, wallet }
 }
 
@@ -90,6 +132,7 @@ const CLEARING_ESCROW_ABI = Object.freeze([
 
 const ATS_HOLD_ABI = Object.freeze([
   'function getHoldForByPartition((bytes32 partition,address tokenHolder,uint256 holdId) hold) view returns (uint256 amount,uint256 expirationTimestamp,address escrow,address destination,bytes data,bytes operatorData,uint8 thirdPartyType)',
+  'function balanceOf(address account) view returns (uint256)',
 ])
 
 function createHoldReader(runner, securityAddress) {
@@ -106,6 +149,10 @@ function createHoldReader(runner, securityAddress) {
         escrow: hold.escrow,
         destination: hold.destination,
       }
+    },
+    async balances({ seller, buyer }) {
+      const [sellerBalance, buyerBalance] = await Promise.all([contract.balanceOf(seller), contract.balanceOf(buyer)])
+      return { seller: sellerBalance.toString(), buyer: buyerBalance.toString() }
     },
   }
 }
@@ -143,6 +190,7 @@ module.exports = {
   ATS_ROLES,
   ATS_HOLD_ABI,
   CLEARING_ESCROW_ABI,
+  createEip1193Wallet,
   loadAts,
   connectAts,
   createHoldAdapter,
