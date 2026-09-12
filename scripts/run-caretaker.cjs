@@ -7,6 +7,7 @@ const { keccak256, toUtf8Bytes } = require('ethers')
 const {
   BYTES32, ENTITY_ID, EVM_ADDRESS, assertMatch, executeRequested, loadConfig,
   loadReasonerConfig, createHoldReader, createClearingEscrowAdapter,
+  holdSettlementBalancesMatch,
   hederaEvmSigner, mirrorContractResult, assertRestrictedTopic, createPaidFetch, buyVerdict,
   submitHcsMessage, createReasoner, runClearingTrade, verifyClearingAuthorization,
   output, run, required,
@@ -45,10 +46,10 @@ function stateStore(filename) {
 async function waitForMirror(config, transactionHash) {
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const result = await mirrorContractResult(config, transactionHash)
-    if (result) return result
+    if (result?.transaction_id) return result
     await new Promise((resolve) => setTimeout(resolve, 1000))
   }
-  throw new Error(`Mirror Node did not index settlement ${transactionHash}`)
+  throw new Error(`Mirror Node did not index settlement transaction ID for ${transactionHash}`)
 }
 
 run(async () => {
@@ -159,9 +160,22 @@ run(async () => {
         hold.get({ partition: trade.partition, seller: trade.seller, holdId: trade.holdId }),
         hold.balances({ seller: trade.seller, buyer: trade.buyer }),
       ])
-      return { ...record, balances, ...(holdArtifact.createdAt ? { createdAt: holdArtifact.createdAt } : {}) }
+      return {
+        ...record, balances,
+        ...(holdArtifact.createdAt ? { createdAt: holdArtifact.createdAt } : {}),
+        ...(holdArtifact.transactionId ? { creationTransactionId: holdArtifact.transactionId } : {}),
+      }
     },
-    buyVerdict: (body) => buyVerdict({ url: config.serviceUrl, body, paidFetch }),
+    buyVerdict: async (body) => ({
+      ...await buyVerdict({ url: config.serviceUrl, body, paidFetch }),
+      paymentProvenance: {
+        payerProvider: privyConfigured ? 'privy' : 'local',
+        payerAccountId: paymentAccountId,
+        tokenId: config.usdcTokenId,
+        payTo: expectedPayTo,
+        feePayer: config.x402FeePayer,
+      },
+    }),
     paymentReferenceHash: (paymentTxId) => keccak256(toUtf8Bytes(paymentTxId)),
     verifyAuthorization: verifyClearingAuthorization,
     reasonVerdict,
@@ -180,12 +194,9 @@ run(async () => {
       const remaining = await hold.get({ partition: trade.partition, seller: trade.seller, holdId: trade.holdId })
       if (remaining && BigInt(remaining.amount) > 0n) return { confirmed: false }
       const after = await hold.balances({ seller: trade.seller, buyer: trade.buyer })
-      const amount = BigInt(authorization.amount)
-      const sellerBefore = BigInt(observed.balances.seller)
-      const buyerBefore = BigInt(observed.balances.buyer)
-      const balancesMatch = authorization.action === 1
-        ? BigInt(after.seller) === sellerBefore - amount && BigInt(after.buyer) === buyerBefore + amount
-        : BigInt(after.seller) === sellerBefore && BigInt(after.buyer) === buyerBefore
+      const balancesMatch = holdSettlementBalancesMatch(
+        authorization.action, authorization.amount, observed.balances, after,
+      )
       if (!balancesMatch) return { confirmed: false }
       return {
         confirmed: true, lifecycle: expectedLifecycle,

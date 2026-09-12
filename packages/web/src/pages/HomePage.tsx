@@ -36,16 +36,21 @@ export function HomePage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const refresh = () => fetchTrades(controller.signal)
-      .then((data) => setDesk({ status: "ready", data }))
-      .catch((error: unknown) => {
+    let timer: number | undefined;
+    const refresh = async () => {
+      try {
+        const data = await fetchTrades(controller.signal);
+        setDesk({ status: "ready", data });
+      } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setDesk({ status: "error", data: null });
-      });
+      } finally {
+        if (!controller.signal.aborted) timer = window.setTimeout(refresh, 2_000);
+      }
+    };
     setDesk({ status: "loading", data: null });
     void refresh();
-    const timer = window.setInterval(refresh, 2_000);
-    return () => { controller.abort(); window.clearInterval(timer); };
+    return () => { controller.abort(); if (timer) window.clearTimeout(timer); };
   }, [reloadKey]);
 
   const metrics = desk.status === "ready" ? (() => {
@@ -83,7 +88,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <ClearingFlow />
+      <ClearingFlow trade={desk.status === "ready" ? desk.data.trades[0] ?? null : null} />
 
       <section id="desk" className="scroll-mt-12 py-20 md:py-28">
         <div className="mx-auto max-w-7xl px-4 md:px-8 lg:px-14">

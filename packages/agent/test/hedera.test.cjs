@@ -2,7 +2,7 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { assertRestrictedTopic } = require('../src/hedera.cjs')
+const { assertRestrictedTopic, mirrorContractResult } = require('../src/hedera.cjs')
 
 const config = { mirrorNodeUrl: 'https://testnet.mirrornode.hedera.com' }
 
@@ -21,4 +21,18 @@ test('audit preflight accepts a submit-key-restricted HCS topic', async () => {
     topicId: '0.0.2', restricted: true,
   })
   assert.equal(requested, 'https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.2')
+})
+
+test('contract result lookup resolves the Hedera transaction ID by its consensus timestamp', async () => {
+  const requested = []
+  const fetchResult = async (url) => {
+    requested.push(url)
+    if (url.includes('/contracts/results/')) {
+      return new Response(JSON.stringify({ hash: '0xabc', timestamp: '1789244004.225533521', result: 'SUCCESS' }))
+    }
+    return new Response(JSON.stringify({ transactions: [{ transaction_id: '0.0.7-1789244000-000000001' }] }))
+  }
+  const result = await mirrorContractResult(config, '0xabc', fetchResult)
+  assert.equal(result.transaction_id, '0.0.7-1789244000-000000001')
+  assert.match(requested[1], /timestamp=eq:1789244004\.225533521/)
 })

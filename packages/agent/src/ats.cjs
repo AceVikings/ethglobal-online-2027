@@ -178,6 +178,25 @@ function createHoldReader(runner, securityAddress) {
   }
 }
 
+function holdSettlementBalancesMatch(action, amount, before, after) {
+  const units = BigInt(amount)
+  const sellerBefore = BigInt(before.seller)
+  const buyerBefore = BigInt(before.buyer)
+  const sellerAfter = BigInt(after.seller)
+  const buyerAfter = BigInt(after.buyer)
+
+  // ATS balanceOf excludes units while they are held. Executing a hold leaves
+  // the seller's liquid balance unchanged and credits the buyer; releasing a
+  // hold restores the units to the seller without changing the buyer.
+  if (Number(action) === 1) {
+    return sellerAfter === sellerBefore && buyerAfter === buyerBefore + units
+  }
+  if (Number(action) === 2) {
+    return sellerAfter === sellerBefore + units && buyerAfter === buyerBefore
+  }
+  return false
+}
+
 function createClearingEscrowAdapter(runner, escrowAddress) {
   if (!runner) throw new Error('A provider or signer is required for ClearingEscrow')
   if (!escrowAddress) throw new Error('ClearingEscrow address is required')
@@ -221,5 +240,6 @@ module.exports = {
   connectAts,
   createHoldAdapter,
   createHoldReader,
+  holdSettlementBalancesMatch,
   createClearingEscrowAdapter,
 }

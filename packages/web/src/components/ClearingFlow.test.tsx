@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { tradeFixture } from "../test/tradeFixture";
 import { ClearingFlow } from "./ClearingFlow";
 
 afterEach(cleanup);
@@ -22,17 +24,17 @@ describe("ClearingFlow", () => {
   it("lets keyboard and pointer users inspect each causal step", () => {
     render(<ClearingFlow />);
 
-    const hold = screen.getByRole("button", { name: /inspect ats hold/i });
-    const verdict = screen.getByRole("button", { name: /inspect signed verdict/i });
+    const hold = screen.getByRole("button", { name: /inspect hedera ats/i });
+    const verdict = screen.getByRole("button", { name: /inspect signed policy/i });
 
     expect(hold).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("Custody changes here")).toBeInTheDocument();
+    expect(screen.getByText("The fund units become unavailable")).toBeInTheDocument();
 
     fireEvent.click(verdict);
 
     expect(verdict).toHaveAttribute("aria-pressed", "true");
     expect(hold).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByText("Authority changes here")).toBeInTheDocument();
+    expect(screen.getByText("The decision becomes trade-specific authority")).toBeInTheDocument();
     expect(screen.getByText(/signature binds the verdict/i)).toBeInTheDocument();
   });
 
@@ -54,5 +56,42 @@ describe("ClearingFlow", () => {
     expect(connectors[0]).toHaveStyle("--packet-delay: 0ms");
     expect(connectors[1]).toHaveStyle("--packet-delay: 200ms");
     expect(connectors[2]).toHaveStyle("--packet-delay: 400ms");
+  });
+
+  it("guides users through the exact API-backed proof for a completed trade", () => {
+    render(<MemoryRouter><ClearingFlow trade={tradeFixture} /></MemoryRouter>);
+
+    expect(screen.getByRole("heading", { name: "Follow the completed trade, step by step." })).toBeInTheDocument();
+    expect(screen.getByText("LIVE TRACE · CLR-001")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open full evidence" })).toHaveAttribute("href", `/trades/${tradeFixture.tradeDigest}`);
+
+    fireEvent.click(screen.getByRole("button", { name: /inspect privy \+ x402/i }));
+    expect(screen.getByText(/0.01 USDC/)).toBeInTheDocument();
+    expect(screen.getByText(/Privy embedded wallet/)).toBeInTheDocument();
+    expect(screen.getByText("Payer 0.0.101")).toBeInTheDocument();
+    expect(screen.getByText("Canonical USDC 0.0.429274")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /inspect the graph/i }));
+    expect(screen.getByText(/6 DEPLOYMENTS · 1\/1 CHECKS PASS/)).toBeInTheDocument();
+    expect(screen.getByText(/messari\/lending-v3.1/)).toBeInTheDocument();
+
+    expect(screen.getByRole("button", { name: /release branch \(counterfactual\)/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /inspect hedera hcs audit/i }));
+    expect(screen.getByText(/TOPIC 0.0.300 · SEQUENCE 4 · REPLAY 11\/11/)).toBeInTheDocument();
+    expect(screen.getByText(/1\/1 anchored messages passed independent replay/)).toBeInTheDocument();
+  });
+
+  it("does not call a locally signed x402 payment Privy-backed", () => {
+    const localTrade = structuredClone(tradeFixture);
+    localTrade.payment!.provenance!.payerProvider = "local";
+    localTrade.verification = null;
+    render(<MemoryRouter><ClearingFlow trade={localTrade} /></MemoryRouter>);
+
+    expect(screen.getByRole("button", { name: /inspect x402 payment/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /inspect privy/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /inspect x402 payment/i }));
+    expect(screen.getByText(/HEDERA PAYER/)).toBeInTheDocument();
+    expect(screen.queryByText(/PRIVY PAYER/)).not.toBeInTheDocument();
   });
 });

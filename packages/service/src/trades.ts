@@ -85,10 +85,13 @@ function project(state: StoredState, options: TradeReaderOptions) {
       escrow: authorization.verifyingContract, units: formatUnits(authorization.amount, options.instrumentDecimals ?? 6),
       createdAt: state.hold?.createdAt ?? at(state, 'HOLD_CONFIRMED', verdict.issuedAt),
       expiresAt: new Date(Number(authorization.holdExpiry) * 1000).toISOString(),
+      creationTransactionId: state.hold?.creationTransactionId ?? null,
+      balances: state.settlement?.balances ?? null,
     },
     payment: {
       status: 'SETTLED', asset: 'USDC', amount: options.priceUsd || '0.01', facilitator: 'Blocky402',
       reference: authorization.paymentRef, transactionId: state.purchased.paymentTxId,
+      provenance: state.purchased.paymentProvenance ?? null,
     },
     decision: {
       policyHash: authorization.policyHash, evidenceHash: authorization.evidenceHash, signer: verdict.signer,
@@ -96,19 +99,38 @@ function project(state: StoredState, options: TradeReaderOptions) {
       expiresAt: new Date(Number(authorization.authorizationExpiry) * 1000).toISOString(),
       nonce: authorization.nonce, nonceConsumed: true, checks: checkRows(verdict.checks), explanation,
       explanationProvider: explanation ? 'deepseek' : null,
+      evidence: {
+        standard: verdict.standard ?? null,
+        protocol: verdict.subject?.protocol ?? null,
+        network: verdict.subject?.network ?? null,
+        deploymentId: verdict.subject?.deploymentId ?? null,
+        block: verdict.evidence?.block ?? null,
+        queryHash: verdict.evidence?.queryHash ?? null,
+        deploymentsCompared: verdict.checks?.shapeAgreement?.peers == null
+          ? null
+          : Number(verdict.checks.shapeAgreement.peers) + 1,
+      },
     },
     settlement: {
       action, transactionId: state.settlement.transactionId, consensusAt: settlementAt,
       contractEvent: 'HoldSettled',
+      balances: state.settlement.balances ?? null,
+      auditStatus: state.audit?.status ?? 'DISABLED',
+      hcsTransactionId: state.audit?.transactionId ?? null,
       hcsTopicId: state.audit?.status === 'ANCHORED' ? options.topicId || null : null,
-      hcsSequenceNumber: null,
+      hcsSequenceNumber: state.audit?.topicSequenceNumber
+        ? Number(state.audit.topicSequenceNumber)
+        : null,
     },
+    verification: state.replay ?? null,
     links: {
       security: hashscan('contract', instrumentId),
       escrow: hashscan('contract', authorization.verifyingContract),
+      holdCreation: hashscan('transaction', state.hold?.creationTransactionId),
       payment: hashscan('transaction', state.purchased.paymentTxId),
       settlement: hashscan('transaction', state.settlement.transactionId),
       hcsTopic: state.audit?.status === 'ANCHORED' ? hashscan('topic', options.topicId) : null,
+      hcsAudit: hashscan('transaction', state.audit?.transactionId),
     },
     updatedAt: state.updatedAt ?? settlementAt,
   }

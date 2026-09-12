@@ -36,7 +36,8 @@ function hederaEvmSigner(config) {
 }
 
 async function mirrorContractResult(config, transactionHash, fetchImpl = fetch) {
-  const url = `${config.mirrorNodeUrl.replace(/\/$/, '')}/api/v1/contracts/results/${transactionHash}`
+  const baseUrl = config.mirrorNodeUrl.replace(/\/$/, '')
+  const url = `${baseUrl}/api/v1/contracts/results/${transactionHash}`
   const response = await fetchImpl(url)
   if (response.status === 404) return null
   if (!response.ok) throw new Error(`Mirror Node returned ${response.status} for settlement transaction`)
@@ -44,7 +45,13 @@ async function mirrorContractResult(config, transactionHash, fetchImpl = fetch) 
   if (result.error_message || (result.result && result.result !== 'SUCCESS')) {
     throw new Error(`Mirror Node reports failed settlement: ${result.error_message || result.result}`)
   }
-  return result
+  if (result.transaction_id || !result.timestamp) return result
+  const transactionUrl = `${baseUrl}/api/v1/transactions?timestamp=eq:${encodeURIComponent(result.timestamp)}&limit=2`
+  const transactionResponse = await fetchImpl(transactionUrl)
+  if (!transactionResponse.ok) throw new Error(`Mirror Node returned ${transactionResponse.status} for settlement transaction ID`)
+  const transactions = (await transactionResponse.json()).transactions || []
+  if (transactions.length !== 1 || !transactions[0].transaction_id) return result
+  return { ...result, transaction_id: transactions[0].transaction_id }
 }
 
 module.exports = { assertRestrictedTopic, hederaClient, hederaEvmSigner, mirrorContractResult, submitHcsMessage }
