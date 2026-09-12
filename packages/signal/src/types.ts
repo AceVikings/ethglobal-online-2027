@@ -1,12 +1,4 @@
-/** Verdict codes. MUST match contracts/src/ConformanceGate.sol. */
-export const VERDICT_CODE = {
-  CONFORMANT: 0,
-  NON_CONFORMANT: 1,
-  STALE: 2,
-  DISAGREEMENT: 3,
-} as const
-
-export type Verdict = keyof typeof VERDICT_CODE
+export type Verdict = 'CONFORMANT' | 'NON_CONFORMANT' | 'STALE' | 'DISAGREEMENT'
 
 /**
  * Precedence when several checks fail at once, hardest failure first.
@@ -89,4 +81,37 @@ export interface VerdictPayload {
 
 export interface SignedVerdict extends VerdictPayload {
   signature: string
+}
+
+/** Exact ATS hold that a paid clearing decision is allowed to settle. */
+export interface ClearingTrade {
+  chainId: string
+  verifyingContract: string
+  security: string
+  partition: string
+  seller: string
+  buyer: string
+  amount: string
+  holdId: string
+  holdExpiry: string
+  policyHash: string
+}
+
+export interface ClearingAuthorization extends ClearingTrade {
+  action: 1 | 2
+  evidenceHash: string
+  paymentRef: string
+  issuedAt: string
+  authorizationExpiry: string
+  nonce: string
+}
+
+/**
+ * The legacy derived verdict remains attached for CLI/MCP consumers, while the
+ * independently signed EIP-712 authorization is the only object ClearingEscrow
+ * will accept for settlement.
+ */
+export interface SignedClearingVerdict extends SignedVerdict {
+  authorization: ClearingAuthorization
+  authorizationSignature: string
 }

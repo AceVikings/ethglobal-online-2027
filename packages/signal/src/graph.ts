@@ -9,8 +9,31 @@ export interface GraphMeta {
 }
 
 export interface GraphResponse<T> {
-  data: T
+  data?: T
   errors?: Array<{ message: string; path?: Array<string | number> }>
+}
+
+export type GraphEvidenceErrorCode =
+  | 'INVALID_DEPLOYMENT'
+  | 'DEPLOYMENT_MISMATCH'
+  | 'INDEXING_ERROR'
+  | 'STALE'
+  | 'SCHEMA_DRIFT'
+  | 'INVARIANT_FAILURE'
+  | 'MALFORMED_RESPONSE'
+
+export interface DeploymentInspectionTarget {
+  deploymentId: string
+  requiredMarketFields: readonly string[]
+}
+
+export interface DeploymentHealthResult {
+  deploymentId: string
+  status: 'healthy'
+  block: number
+  timestamp: number
+  ageSeconds: number
+  schemaFieldsChecked: number
 }
 
 export interface GraphClientOptions {
@@ -30,6 +53,16 @@ export class GraphGatewayError extends Error {
     this.name = 'GraphGatewayError'
     this.status = status
     this.errors = errors
+  }
+}
+
+export class GraphEvidenceError extends GraphGatewayError {
+  readonly code: GraphEvidenceErrorCode
+
+  constructor(code: GraphEvidenceErrorCode, message: string, status?: number, errors?: GraphResponse<unknown>['errors']) {
+    super(message, status, errors)
+    this.name = 'GraphEvidenceError'
+    this.code = code
   }
 }
 
@@ -93,12 +126,16 @@ export class GraphGatewayClient {
         throw new GraphGatewayError(`Graph Gateway returned HTTP ${response.status}`, response.status, body.errors)
       }
       if (body.errors?.length) {
-        throw new GraphGatewayError(body.errors.map((error) => error.message).join('; '), response.status, body.errors)
+        const message = body.errors.map((error) => error.message).join('; ')
+        if (/invalid deployment ID|subgraph not found/i.test(message)) {
+          throw new GraphEvidenceError('INVALID_DEPLOYMENT', message, response.status, body.errors)
+        }
+        if (/has no field|unknown field/i.test(message)) {
+          throw new GraphEvidenceError('SCHEMA_DRIFT', message, response.status, body.errors)
+        }
+        throw new GraphGatewayError(message, response.status, body.errors)
       }
-      if (body.data === undefined || body.data === null) {
-        throw new GraphGatewayError('Graph Gateway response did not contain data', response.status)
-      }
-      return body.data
+      return assertGraphDeployment(body.data, deploymentId, response.status)
     } finally {
       clearTimeout(timeout)
     }
@@ -111,6 +148,90 @@ export class GraphGatewayClient {
   readEntities<T>(deploymentId: string, query: string, variables: Record<string, unknown> = {}): Promise<T> {
     return this.query<T>(deploymentId, query, variables)
   }
+
+  async inspectDeployment(
+    target: DeploymentInspectionTarget,
+    options: { nowUnix?: number; maxAgeSeconds?: number } = {},
+  ): Promise<DeploymentHealthResult> {
+    const data = await this.query<{
+      _meta: GraphMeta
+      __type: { fields: Array<{ name: string }> } | null
+      markets: Array<{ id: string }>
+    }>(target.deploymentId, CATALOG_HEALTH_QUERY)
+    if (data._meta.hasIndexingErrors) {
+      throw new GraphEvidenceError(
+        'INDEXING_ERROR',
+        `Graph deployment has indexing errors: ${target.deploymentId}`,
+      )
+    }
+    const timestamp = data._meta.block.timestamp
+    if (!Number.isSafeInteger(timestamp) || Number(timestamp) < 0) {
+      throw new GraphEvidenceError('MALFORMED_RESPONSE', `Graph timestamp was invalid for ${target.deploymentId}`)
+    }
+    const fields = data.__type?.fields?.map(({ name }) => name)
+    if (!fields || fields.some((field) => typeof field !== 'string')) {
+      throw new GraphEvidenceError('SCHEMA_DRIFT', `Market schema was unavailable for ${target.deploymentId}`)
+    }
+    const missing = target.requiredMarketFields.filter((field) => !fields.includes(field))
+    if (missing.length) {
+      throw new GraphEvidenceError(
+        'SCHEMA_DRIFT',
+        `Market schema drift for ${target.deploymentId}; missing ${missing.join(', ')}`,
+      )
+    }
+    if (!Array.isArray(data.markets) || data.markets.length === 0 || typeof data.markets[0]?.id !== 'string') {
+      throw new GraphEvidenceError('INVARIANT_FAILURE', `Graph deployment has no lending markets: ${target.deploymentId}`)
+    }
+    const nowUnix = options.nowUnix ?? Math.floor(Date.now() / 1_000)
+    const maxAgeSeconds = options.maxAgeSeconds ?? 300
+    if (!Number.isSafeInteger(nowUnix) || !Number.isSafeInteger(maxAgeSeconds) || maxAgeSeconds < 0) {
+      throw new Error('Health inspection time values must be non-negative safe integers')
+    }
+    const ageSeconds = Math.max(0, nowUnix - Number(timestamp))
+    if (ageSeconds > maxAgeSeconds) {
+      throw new GraphEvidenceError(
+        'STALE',
+        `Graph evidence for ${target.deploymentId} is ${ageSeconds}s old; limit is ${maxAgeSeconds}s`,
+      )
+    }
+    return {
+      deploymentId: target.deploymentId,
+      status: 'healthy',
+      block: data._meta.block.number,
+      timestamp: Number(timestamp),
+      ageSeconds,
+      schemaFieldsChecked: target.requiredMarketFields.length,
+    }
+  }
+}
+
+function assertGraphDeployment<T>(data: T | undefined, expectedDeploymentId: string, status?: number): T {
+  if (!data || typeof data !== 'object') {
+    throw new GraphEvidenceError('MALFORMED_RESPONSE', 'Graph Gateway response did not contain data', status)
+  }
+  const meta = (data as { _meta?: unknown })._meta
+  if (!meta || typeof meta !== 'object') {
+    throw new GraphEvidenceError(
+      'MALFORMED_RESPONSE',
+      `Graph response omitted _meta for ${expectedDeploymentId}`,
+      status,
+    )
+  }
+  const typedMeta = meta as Partial<GraphMeta>
+  if (typedMeta.deployment !== expectedDeploymentId) {
+    throw new GraphEvidenceError(
+      'DEPLOYMENT_MISMATCH',
+      `Graph response deployment mismatch; expected ${expectedDeploymentId}`,
+      status,
+    )
+  }
+  if (typeof typedMeta.hasIndexingErrors !== 'boolean') {
+    throw new GraphEvidenceError('MALFORMED_RESPONSE', `Graph response indexing status was invalid for ${expectedDeploymentId}`, status)
+  }
+  if (!Number.isSafeInteger(typedMeta.block?.number) || Number(typedMeta.block?.number) < 0) {
+    throw new GraphEvidenceError('MALFORMED_RESPONSE', `Graph response block was invalid for ${expectedDeploymentId}`, status)
+  }
+  return data
 }
 
 export const META_QUERY = `query ConformanceMeta {
@@ -119,6 +240,18 @@ export const META_QUERY = `query ConformanceMeta {
     hasIndexingErrors
     block { number timestamp }
   }
+}`
+
+export const CATALOG_HEALTH_QUERY = `query CatalogHealth {
+  _meta {
+    deployment
+    hasIndexingErrors
+    block { number timestamp }
+  }
+  __type(name: "Market") {
+    fields { name }
+  }
+  markets(first: 1) { id }
 }`
 
 export const LENDING_MARKETS_QUERY = `query ConformanceMarkets($first: Int!) {

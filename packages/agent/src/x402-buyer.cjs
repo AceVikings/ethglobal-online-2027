@@ -1,7 +1,7 @@
 'use strict'
 
 async function createPaidFetch({
-  accountId, privateKey, expectedPayTo, expectedAsset = '0.0.429274',
+  accountId, privateKey, signer: injectedSigner, expectedPayTo, expectedAsset = '0.0.429274',
   expectedFeePayer = '0.0.7162784', maxAmountPerPayment = '$1', network = 'hedera:testnet',
 }) {
   const { x402Client } = require('@x402/core/client')
@@ -11,7 +11,12 @@ async function createPaidFetch({
   for (const [name, value] of Object.entries({ accountId, expectedPayTo, expectedAsset, expectedFeePayer })) {
     if (!isValidHederaEntityId(value)) throw new Error(`${name} must be a Hedera entity ID`)
   }
-  const signer = createClientHederaSigner(accountId, PrivateKey.fromStringECDSA(privateKey), { network })
+  if (!injectedSigner && !privateKey) throw new Error('privateKey or signer is required')
+  const signer = injectedSigner || createClientHederaSigner(
+    accountId,
+    PrivateKey.fromStringECDSA(privateKey),
+    { network },
+  )
   const client = x402Client.fromConfig({
     schemes: [{ network, client: new ExactHederaScheme(signer) }],
     spendControls: { maxAmountPerPayment },

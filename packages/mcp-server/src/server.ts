@@ -1,4 +1,5 @@
 import { getVerdict, paymentFetchFromEnv } from '@desk/cli/client'
+import type { ClearingTrade } from '@desk/signal'
 
 type JsonRpcId = string | number | null
 interface JsonRpcRequest { jsonrpc: '2.0'; id?: JsonRpcId; method: string; params?: unknown }
@@ -6,13 +7,31 @@ interface JsonRpcRequest { jsonrpc: '2.0'; id?: JsonRpcId; method: string; param
 const inputSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['protocol', 'network', 'deploymentId'],
+  required: ['clientRequestId', 'protocol', 'network', 'deploymentId', 'trade'],
   properties: {
+    clientRequestId: { type: 'string', description: 'Stable idempotency key for this paid trade decision' },
     protocol: { type: 'string', description: 'Protocol slug, for example aave-v3' },
     network: { type: 'string', description: 'Network slug, for example base' },
     deploymentId: { type: 'string', description: 'Pinned Graph deployment ID' },
     pinnedCid: { type: ['string', 'null'], description: 'Caller policy CID; null accepts the served CID' },
     lagBoundBlocks: { type: 'integer', minimum: 0, maximum: 1_000_000, default: 50 },
+    trade: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['chainId', 'verifyingContract', 'security', 'partition', 'seller', 'buyer', 'amount', 'holdId', 'holdExpiry', 'policyHash'],
+      properties: {
+        chainId: { type: 'string' },
+        verifyingContract: { type: 'string' },
+        security: { type: 'string' },
+        partition: { type: 'string' },
+        seller: { type: 'string' },
+        buyer: { type: 'string' },
+        amount: { type: 'string' },
+        holdId: { type: 'string' },
+        holdExpiry: { type: 'string' },
+        policyHash: { type: 'string' },
+      },
+    },
   },
 } as const
 
@@ -27,7 +46,7 @@ function record(value: unknown): value is Record<string, unknown> {
 
 export interface McpConfig {
   serviceUrl: string
-  expectedSigner?: string
+  expectedSigner: string
   paymentFetch?: typeof fetch
 }
 
@@ -57,8 +76,11 @@ export function createMcpHandler(config: McpConfig) {
       return rpcError(id, -32602, 'Invalid tool call')
     }
     const args = params.arguments
-    if (typeof args.protocol !== 'string' || typeof args.network !== 'string' || typeof args.deploymentId !== 'string') {
-      return rpcError(id, -32602, 'protocol, network, and deploymentId are required strings')
+    if (
+      typeof args.clientRequestId !== 'string' || typeof args.protocol !== 'string' ||
+      typeof args.network !== 'string' || typeof args.deploymentId !== 'string' || !record(args.trade)
+    ) {
+      return rpcError(id, -32602, 'clientRequestId, protocol, network, deploymentId, and trade are required')
     }
     const lag = args.lagBoundBlocks ?? 50
     if (!Number.isSafeInteger(lag) || Number(lag) < 0 || Number(lag) > 1_000_000) {
@@ -74,9 +96,11 @@ export function createMcpHandler(config: McpConfig) {
         expectedSigner: config.expectedSigner,
         paymentFetch: config.paymentFetch,
         input: {
+          clientRequestId: args.clientRequestId,
           standard: 'messari/lending-v3.1',
           subject: { protocol: args.protocol, network: args.network, deploymentId: args.deploymentId },
           policy: { pinnedCid: (args.pinnedCid as string | null | undefined) ?? null, lagBoundBlocks: Number(lag) },
+          trade: args.trade as unknown as ClearingTrade,
         },
       })
       const output = { ...result.verdict, paymentRef: result.paymentRef }
@@ -92,6 +116,7 @@ export function createMcpHandler(config: McpConfig) {
 }
 
 export async function configFromEnv(env: NodeJS.ProcessEnv = process.env): Promise<McpConfig> {
+  if (!env.CONFORMANCE_EXPECTED_SIGNER) throw new Error('CONFORMANCE_EXPECTED_SIGNER is required')
   return {
     serviceUrl: env.CONFORMANCE_SERVICE_URL ?? 'http://127.0.0.1:4020',
     expectedSigner: env.CONFORMANCE_EXPECTED_SIGNER,

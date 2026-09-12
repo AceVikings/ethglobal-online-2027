@@ -68,7 +68,7 @@ test('evaluates the target against all six Gateway snapshots and schemas', async
   assert.equal(result.checks.shapeAgreement.peers, 5)
   assert.equal(gatewayCalls.length, 6)
   assert.equal(schemaCalls.length, 6)
-  assert.deepEqual(searches, ['aave-v3'])
+  assert.deepEqual(searches, [target.protocol])
   assert.equal(countCalls[0].length, 6)
   assert.equal(result.evidence.block, 1_003)
   assert.equal(JSON.stringify(result).includes('market-one'), false)
@@ -93,6 +93,22 @@ test('schema drift across a peer produces DISAGREEMENT', async () => {
   const result = await evaluator(request())
   assert.equal(result.verdict, 'DISAGREEMENT')
   assert.equal(result.checks.shapeAgreement.mismatches, 1)
+})
+
+test('protocol-specific schema extensions do not violate the shared standard', async () => {
+  const schemas = new Map(LENDING_DEPLOYMENTS.map((item) => [item.deploymentId, MARKET_SCHEMA]))
+  schemas.set(LENDING_DEPLOYMENTS[0].deploymentId, MARKET_SCHEMA.replace('}', '    protocolExtension: String\n}'))
+  const { evaluator } = harness({ schemas })
+  const result = await evaluator(request())
+  assert.equal(result.checks.shapeAgreement.pass, true)
+})
+
+test('fails closed when a Gateway response identifies a different deployment', async () => {
+  const snapshots = snapshotFixtures()
+  const mismatched = snapshots.get(LENDING_DEPLOYMENTS[0].deploymentId) as { _meta: { deployment: string } }
+  mismatched._meta.deployment = LENDING_DEPLOYMENTS[1].deploymentId
+  const { evaluator } = harness({ snapshots })
+  await assert.rejects(() => evaluator(request()), /Graph served deployment/)
 })
 
 test('tight caller freshness bound produces STALE', async () => {

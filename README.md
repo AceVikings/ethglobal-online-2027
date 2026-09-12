@@ -1,65 +1,48 @@
 # The Conformance Desk
 
-A paid, signed conformance verdict that authorizes—or structurally refuses—a regulated token
-operation. The seller reads live Messari Lending v3.1 deployments through The Graph, the caretaker
-pays through Hedera x402, and an ATS control list makes a failed verdict revert at the token layer.
-
-This repository intentionally contains no frontend. The terminal, signed verdict, HashScan records,
-HCS topic, and Mirror Node replay are the demo surface.
+A paid, signed clearing decision for ATS-issued private-credit fund units. A seller locks an exact
+trade in an ATS hold, a buyer agent pays for live market checks through Hedera x402, and a contract
+escrow either executes that hold or releases it. The deterministic policy is authoritative;
+DeepSeek can explain the result but cannot sign, settle, or change it.
 
 ## Architecture
 
 ```mermaid
-flowchart TD
-    subgraph Consumers["Consumers — no Graph credentials"]
-        Caretaker["Caretaker agent<br/>Hedera key"]
-        CLI["CLI"]
-        MCPConsumer["MCP consumer"]
+sequenceDiagram
+    participant Seller
+    participant ATS as ATS security
+    participant Buyer as Buyer agent
+    participant Service as Clearing service
+    participant X402 as Blocky402
+    participant Graph as The Graph
+    participant Escrow as ClearingEscrow
+    participant HCS
+
+    Seller->>ATS: Create hold for buyer<br/>with ClearingEscrow as escrow
+    Buyer->>Service: Request decision for exact hold
+    Service-->>Buyer: 402 payment requirements
+    Buyer->>X402: Sign bounded Hedera payment
+    X402-->>Service: Verify payment
+    Service->>Graph: Read pinned live deployments
+    Graph-->>Service: Market state and block metadata
+    Service->>Service: Apply deterministic policy
+    Service->>X402: Settle payment
+    Service-->>Buyer: Signed action-bound verdict
+    Buyer->>Buyer: Verify signatures and exact trade
+    Buyer->>Buyer: DeepSeek explains fixed result (optional)
+    Buyer->>Escrow: Submit verdict
+    alt approved
+        Escrow->>ATS: Execute exact hold
+    else denied
+        Escrow->>ATS: Release exact hold
     end
-
-    Seller["Seller service<br/>Graph key + verdict key"]
-    Blocky["Blocky402 facilitator<br/>Hedera exact · USDC"]
-
-    subgraph GraphPlane["The Graph data plane"]
-        Gateway["Graph Gateway<br/>six pinned Messari deployments"]
-        GraphMCP["Subgraph MCP<br/>discovery · schemas · queries · volume"]
-        Checks["Five conformance checks"]
-    end
-
-    Signed["Signed derived verdict<br/>no raw Graph rows"]
-    Decision{"Verdict is<br/>CONFORMANT?"}
-    Execute["Remove recipient from ATS block list<br/>then execute transfer"]
-    Refuse["Leave recipient blocked<br/>do not construct transfer"]
-
-    subgraph Audit["Post-operation audit anchors"]
-        HCS["HCS decision message"]
-        Gate["ConformanceGate<br/>signature-checked event"]
-    end
-
-    Caretaker -->|"request"| Seller
-    CLI -->|"request"| Seller
-    MCPConsumer -->|"request"| Seller
-    Seller -->|"402 Payment Required"| Caretaker
-    Caretaker -->|"signed payment"| Blocky
-    Blocky -->|"verified payment"| Seller
-    Seller --> Gateway
-    Seller --> GraphMCP
-    Gateway --> Checks
-    GraphMCP --> Checks
-    Checks --> Signed
-    Signed --> Seller
-    Seller -->|"settle, then return verdict"| Caretaker
-    Caretaker --> Decision
-    Decision -->|"yes"| Execute
-    Decision -->|"no"| Refuse
-    Execute --> HCS
-    Execute --> Gate
-    Refuse --> HCS
-    Refuse --> Gate
+    Buyer->>Buyer: Confirm escrow, ATS, and Mirror state
+    Buyer-->>HCS: Publish final decision digest
 ```
 
-The seller and buyer are separate processes and hold different credentials. `packages/service`
-never exposes its Graph key or raw Graph rows. `packages/agent` never receives Graph credentials.
+The seller service and buyer agent are separate processes and hold different credentials.
+`packages/service` never exposes its Graph key or raw Graph rows. `packages/agent` never receives
+Graph credentials, issuer powers, or custody of the held units.
 
 ## Packages
 
@@ -68,10 +51,10 @@ never exposes its Graph key or raw Graph rows. `packages/agent` never receives G
 | `packages/signal` | Pure checks, catalog, Graph clients, canonical JSON, signing, HCS digest |
 | `packages/evaluator` | Live six-deployment Graph + MCP evaluator; returns derived evidence only |
 | `packages/service` | Free health endpoint and x402-protected signed verdict endpoint |
-| `packages/agent` | CommonJS caretaker, Anthropic reasoning, ATS action/refusal, HCS/gate anchors |
+| `packages/agent` | Buyer agent, provider-neutral explanation, authorization submission, and HCS anchoring |
 | `packages/cli` | Signature-verifying paid consumer |
 | `packages/mcp-server` | `get_conformance_verdict` reusable MCP tool |
-| `contracts` | Foundry contract that verifies verdict signatures and rejects replay |
+| `contracts` | `ClearingEscrow`, which verifies action-bound verdicts and settles exact ATS holds |
 | `scripts` | Dry-run-first issuance, lifecycle, scheduling, sweep, replay, deploy and verify tools |
 
 ## Setup
@@ -85,9 +68,13 @@ npm run check
 ```
 
 Fill `.env` locally; never commit it. The seller requires `GRAPH_STUDIO_KEY`,
-`VERDICT_SIGNER_KEY`, `X402_PAY_TO`, and the x402 settings. The paid consumers require the ECDSA
-`HEDERA_OPERATOR_ID` and `HEDERA_OPERATOR_KEY`. The live caretaker additionally requires an
-explicit `ANTHROPIC_MODEL`, recipient/security IDs, an HCS topic, and the deployed gate address.
+`VERDICT_SIGNER_KEY`, `X402_PAY_TO`, and the x402 settings. The preferred paid-consumer path uses
+`PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_WALLET_ID`, and a Hedera account associated with that
+wallet's ECDSA public key. A local ECDSA `HEDERA_OPERATOR_KEY` remains available for development.
+Optional explanations require
+`DEEPSEEK_API_KEY` and an explicit `DEEPSEEK_MODEL`; clearing still fails closed from deterministic
+checks when those values are absent. Live settlement also requires the ATS security, hold, HCS
+topic, and deployed escrow identifiers.
 
 Start the seller and call the CLI in separate shells:
 
@@ -105,18 +92,20 @@ node scripts/run-caretaker.cjs
 node scripts/run-caretaker.cjs --execute
 ```
 
-## Refusal and trust boundaries
+## Settlement and trust boundaries
 
-- Only a signed `CONFORMANT` verdict can cause the caretaker to remove a recipient from the ATS
-  block list. Every other verdict leaves the recipient blocked, so the transfer is never built.
-- The Anthropic reasoning step explains the signed result but cannot override it. A conflicting
-  model recommendation fails before any mutation.
+- The seller creates an ATS hold naming the buyer, amount, expiry, and `ClearingEscrow`. Held units
+  cannot be double-spent while the decision is pending.
+- Only a complete, unexpired, correctly signed authorization can make `ClearingEscrow` execute or
+  release that exact hold. Changed fields, wrong signers, and reused nonces revert.
+- The DeepSeek explanation consumes derived checks only and cannot override the deterministic
+  action. Missing model credentials disable the explanation path, not the policy decision.
 - x402 requirements are pinned to `hedera:testnet`, exact scheme, Circle testnet USDC `0.0.429274`,
   Blocky fee payer `0.0.7162784`, the configured seller, and a buyer-side spend cap.
 - Payment is verified before Graph work and settled after evaluation; settlement failure returns no
   verdict.
-- HCS and `ConformanceGate` anchoring happen after the ATS outcome and are not atomic with it.
-  Partial anchor failures are reported as executed/refused-but-unanchored, never as success.
+- Contract execution is authoritative. HCS anchoring happens after finality and is reported as
+  degraded when unavailable rather than being confused with settlement.
 
 ## Honest platform limits
 
@@ -136,10 +125,11 @@ node scripts/run-caretaker.cjs --execute
 ## Verification status
 
 Offline validation currently covers signal calculation/signatures, seller payment ordering, CLI/MCP
-verification, caretaker refusal/compensation, script dry runs, and Solidity signature/replay guards.
-It does **not** prove a live Graph query, Blocky402 settlement, ATS issuance, HCS message, HTS token,
-scheduled transaction, contract deployment, Sourcify verification, or HashScan result. Those require
-the testnet credentials and IDs in `.env`. Follow the evidence-driven [end-to-end test
+verification, agent authority checks, script dry runs, and Solidity signature/replay guards.
+The Graph sweep has also been exercised live against all six pinned deployments, but its redacted
+evidence remains local. This does **not** prove a Blocky402 settlement, ATS issuance, HCS message, HTS token,
+scheduled transaction, clearing-escrow deployment, Sourcify verification, or HashScan result. Those
+require the testnet credentials and IDs in `.env`. Follow the evidence-driven [end-to-end test
 plan](docs/E2E.md) before making any live-system claim.
 
 Primary references: [Hedera ATS](https://docs.hedera.com/solutions/tokenization/ats),

@@ -12,7 +12,7 @@
     "@desk/signal": "0.1.0",
     "@x402/core": "^2.25.0",
     "@x402/fetch": "^2.25.0",
-    "@x402/hedera": "^2.25.0"
-  },
-  "devDependencies": { "ethers": "^6.13.4" }
+    "@x402/hedera": "^2.25.0",
+    "ethers": "^6.13.4"
+  }
 }

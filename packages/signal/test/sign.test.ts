@@ -1,8 +1,18 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { Wallet } from 'ethers'
-import { anchorDigest, canonicalJSON, signalHash, signVerdict, verifyVerdict } from '../src/sign.ts'
-import type { VerdictPayload } from '../src/types.ts'
+import {
+  canonicalJSON,
+  clearingAuthorizationHash,
+  clearingEvidenceHash,
+  clearingPolicyHash,
+  signalHash,
+  signClearingAuthorization,
+  signVerdict,
+  verifyClearingAuthorization,
+  verifyVerdict,
+} from '../src/sign.ts'
+import type { ClearingAuthorization, VerdictPayload } from '../src/types.ts'
 
 const PRIVATE_KEY = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8417f4603b6b78690d'
 
@@ -63,14 +73,52 @@ test('signer must correspond to the signing key', () => {
   assert.throws(() => signVerdict(unsigned, PRIVATE_KEY), /does not match private key/)
 })
 
-test('anchor digest is deterministic and domain fields affect it', () => {
-  const args = {
-    paymentTxId: '0.0.123@1.2',
-    signalHash: `0x${'22'.repeat(32)}`,
-    opCalldataHash: `0x${'33'.repeat(32)}`,
-    verdict: 'CONFORMANT' as const,
-    ts: '2026-09-13T09:14:05Z',
+test('clearing authorization matches the ClearingEscrow EIP-712 digest vector', () => {
+  const authorization: ClearingAuthorization = {
+    chainId: '296',
+    verifyingContract: `0x${'11'.repeat(20)}`,
+    security: `0x${'22'.repeat(20)}`,
+    partition: `0x${'00'.repeat(31)}01`,
+    seller: `0x${'33'.repeat(20)}`,
+    buyer: `0x${'44'.repeat(20)}`,
+    amount: '25',
+    holdId: '7',
+    holdExpiry: '1789300000',
+    action: 1,
+    policyHash: `0x${'66'.repeat(32)}`,
+    evidenceHash: `0x${'77'.repeat(32)}`,
+    paymentRef: `0x${'88'.repeat(32)}`,
+    issuedAt: '1789200000',
+    authorizationExpiry: '1789200300',
+    nonce: `0x${'99'.repeat(32)}`,
   }
-  assert.equal(anchorDigest(args), anchorDigest({ ...args }))
-  assert.notEqual(anchorDigest(args), anchorDigest({ ...args, verdict: 'STALE' }))
+  // Generated independently from ClearingEscrow's Solidity type hash, domain
+  // separator, and abi.encode field order. This catches JS/contract drift.
+  assert.equal(
+    clearingAuthorizationHash(authorization),
+    '0x555ae2cde972b31112e9ba9bb67da571d4062ba63268a17ae11d97014ea639b4',
+  )
+  const signature = signClearingAuthorization(authorization, PRIVATE_KEY)
+  assert.equal(verifyClearingAuthorization(authorization, signature, new Wallet(PRIVATE_KEY).address).ok, true)
+  assert.notEqual(
+    verifyClearingAuthorization({ ...authorization, amount: '26' }, signature, new Wallet(PRIVATE_KEY).address).ok,
+    true,
+  )
+})
+
+test('policy and derived-evidence commitments are canonical and tamper evident', () => {
+  const policy = { pinnedCid: null, lagBoundBlocks: 50 }
+  assert.equal(
+    clearingPolicyHash('messari/lending-v3.1', policy),
+    clearingPolicyHash('messari/lending-v3.1', { lagBoundBlocks: 50, pinnedCid: null }),
+  )
+  const evidence = {
+    standard: payload().standard,
+    subject: payload().subject,
+    policy,
+    checks: payload().checks,
+    verdict: payload().verdict,
+    evidence: payload().evidence,
+  }
+  assert.notEqual(clearingEvidenceHash(evidence), clearingEvidenceHash({ ...evidence, verdict: 'STALE' }))
 })

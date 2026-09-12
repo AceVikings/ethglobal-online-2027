@@ -1,6 +1,6 @@
 'use strict'
 
-const { Wallet, JsonRpcProvider, Interface } = require('ethers')
+const { Wallet, JsonRpcProvider, Contract } = require('ethers')
 
 // ATS v8 publishes SecurityRole in its declarations but not from its CommonJS
 // entrypoint. Keep the four role hashes pinned to the v8.0.0 declarations until
@@ -35,17 +35,117 @@ async function connectAts(config) {
   return { ats, wallet }
 }
 
-function createControlListAdapter(ats, securityId) {
-  const request = (targetId) => new ats.ControlListRequest({ securityId, targetId })
+function createHoldAdapter(ats, securityId) {
   return {
-    block: (targetId) => ats.Security.addToControlList(request(targetId)),
-    unblock: (targetId) => ats.Security.removeFromControlList(request(targetId)),
-    isBlocked: (targetId) => ats.Security.isAccountInControlList(request(targetId)),
+    create({ partition, escrowId, amount, buyerId, expirationDate }) {
+      return ats.Security.createHoldByPartition(new ats.CreateHoldByPartitionRequest({
+        securityId,
+        partitionId: partition,
+        escrowId,
+        amount: String(amount),
+        targetId: buyerId,
+        expirationDate,
+      }))
+    },
+    async get({ partition, sellerId, holdId }) {
+      const hold = await ats.Security.getHoldForByPartition(new ats.GetHoldForByPartitionRequest({
+        securityId,
+        partitionId: partition,
+        targetId: sellerId,
+        holdId: Number(holdId),
+      }))
+      if (!hold) return null
+      const expiration = hold.expirationDate instanceof Date
+        ? Math.floor(hold.expirationDate.getTime() / 1000)
+        : hold.expirationTimeStamp ?? hold.expirationTimestamp
+      return {
+        partition,
+        seller: hold.tokenHolderAddress || sellerId,
+        holdId: hold.id ?? holdId,
+        amount: hold.amount,
+        expirationTimestamp: expiration,
+        escrow: hold.escrowAddress || hold.escrow,
+        destination: hold.destinationAddress || hold.to,
+      }
+    },
+    reclaim({ partition, sellerId, holdId }) {
+      return ats.Security.reclaimHoldByPartition(new ats.ReclaimHoldByPartitionRequest({
+        securityId,
+        partitionId: partition,
+        targetId: sellerId,
+        holdId: Number(holdId),
+      }))
+    },
   }
 }
 
-function encodeTransfer({ to, amount }) {
-  return new Interface(['function transfer(address to,uint256 amount)']).encodeFunctionData('transfer', [to, amount])
+const CLEARING_ESCROW_ABI = Object.freeze([
+  'function settle((uint256 chainId,address verifyingContract,address security,bytes32 partition,address seller,address buyer,uint256 amount,uint256 holdId,uint256 holdExpiry,uint8 action,bytes32 policyHash,bytes32 evidenceHash,bytes32 paymentRef,uint256 issuedAt,uint256 authorizationExpiry,bytes32 nonce) authorization,bytes signature) returns (bytes32 tradeDigest)',
+  'function usedNonces(bytes32 nonce) view returns (bool)',
+  'function hashAuthorization((uint256 chainId,address verifyingContract,address security,bytes32 partition,address seller,address buyer,uint256 amount,uint256 holdId,uint256 holdExpiry,uint8 action,bytes32 policyHash,bytes32 evidenceHash,bytes32 paymentRef,uint256 issuedAt,uint256 authorizationExpiry,bytes32 nonce) authorization) view returns (bytes32)',
+  'function signer() view returns (address)',
+  'function policyHash() view returns (bytes32)',
+  'event HoldSettled(bytes32 indexed tradeDigest,address indexed security,uint256 indexed holdId,uint8 action,bytes32 evidenceHash,bytes32 paymentRef,bytes32 nonce,address relayer)',
+])
+
+const ATS_HOLD_ABI = Object.freeze([
+  'function getHoldForByPartition((bytes32 partition,address tokenHolder,uint256 holdId) hold) view returns (uint256 amount,uint256 expirationTimestamp,address escrow,address destination,bytes data,bytes operatorData,uint8 thirdPartyType)',
+])
+
+function createHoldReader(runner, securityAddress) {
+  if (!runner) throw new Error('A provider is required for ATS hold reads')
+  if (!securityAddress) throw new Error('ATS security address is required')
+  const contract = new Contract(securityAddress, ATS_HOLD_ABI, runner)
+  return {
+    async get({ partition, seller, holdId }) {
+      const hold = await contract.getHoldForByPartition({ partition, tokenHolder: seller, holdId })
+      return {
+        partition, seller, holdId: String(holdId),
+        amount: hold.amount.toString(),
+        expirationTimestamp: hold.expirationTimestamp.toString(),
+        escrow: hold.escrow,
+        destination: hold.destination,
+      }
+    },
+  }
 }
 
-module.exports = { ATS_ROLES, loadAts, connectAts, createControlListAdapter, encodeTransfer }
+function createClearingEscrowAdapter(runner, escrowAddress) {
+  if (!runner) throw new Error('A provider or signer is required for ClearingEscrow')
+  if (!escrowAddress) throw new Error('ClearingEscrow address is required')
+  const contract = new Contract(escrowAddress, CLEARING_ESCROW_ABI, runner)
+  return {
+    settle: (authorization, signature) => contract.settle(authorization, signature),
+    isNonceUsed: (nonce) => contract.usedNonces(nonce),
+    hashAuthorization: (authorization) => contract.hashAuthorization(authorization),
+    async findSettlement(authorization) {
+      const events = await contract.queryFilter(
+        contract.filters.HoldSettled(null, authorization.security, authorization.holdId),
+      )
+      const event = events.find((candidate) =>
+        Number(candidate.args.action) === Number(authorization.action) &&
+        candidate.args.nonce.toLowerCase() === authorization.nonce.toLowerCase() &&
+        candidate.args.evidenceHash.toLowerCase() === authorization.evidenceHash.toLowerCase() &&
+        candidate.args.paymentRef.toLowerCase() === authorization.paymentRef.toLowerCase())
+      return event ? { tradeDigest: event.args.tradeDigest, transactionHash: event.transactionHash } : null
+    },
+    async findSettlementByDigest(tradeDigest) {
+      const events = await contract.queryFilter(contract.filters.HoldSettled(tradeDigest))
+      const event = events.at(-1)
+      return event ? { args: event.args, tradeDigest: event.args.tradeDigest, transactionHash: event.transactionHash } : null
+    },
+    signer: () => contract.signer(),
+    policyHash: () => contract.policyHash(),
+  }
+}
+
+module.exports = {
+  ATS_ROLES,
+  ATS_HOLD_ABI,
+  CLEARING_ESCROW_ABI,
+  loadAts,
+  connectAts,
+  createHoldAdapter,
+  createHoldReader,
+  createClearingEscrowAdapter,
+}

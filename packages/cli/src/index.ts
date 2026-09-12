@@ -1,8 +1,10 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import { readFileSync } from 'node:fs'
 import { getVerdict, paymentFetchFromEnv } from './client.ts'
+import type { ClearingTrade } from '@desk/signal'
 
 function usage(): never {
-  console.error('Usage: conformance-desk check <protocol> <network> <deployment-id> [--pin CID] [--lag BLOCKS] [--json]')
+  console.error('Usage: conformance-desk check <protocol> <network> <deployment-id> --request-id ID --trade FILE [--pin CID] [--lag BLOCKS] [--json]')
   process.exit(1)
 }
 
@@ -17,15 +19,22 @@ const argv = process.argv.slice(2)
 if (argv[0] !== 'check' || argv.length < 4) usage()
 const lag = Number(option(argv, '--lag') ?? '50')
 if (!Number.isSafeInteger(lag) || lag < 0) throw new Error('--lag must be a non-negative integer')
+const requestId = option(argv, '--request-id') ?? usage()
+const tradeFile = option(argv, '--trade') ?? usage()
+const trade = JSON.parse(readFileSync(tradeFile, 'utf8')) as ClearingTrade
+const expectedSigner = process.env.CONFORMANCE_EXPECTED_SIGNER
+if (!expectedSigner) throw new Error('CONFORMANCE_EXPECTED_SIGNER is required')
 
 const result = await getVerdict({
   serviceUrl: process.env.CONFORMANCE_SERVICE_URL ?? 'http://127.0.0.1:4020',
-  expectedSigner: process.env.CONFORMANCE_EXPECTED_SIGNER,
+  expectedSigner,
   paymentFetch: await paymentFetchFromEnv(),
   input: {
+    clientRequestId: requestId,
     standard: 'messari/lending-v3.1',
     subject: { protocol: argv[1], network: argv[2], deploymentId: argv[3] },
     policy: { pinnedCid: option(argv, '--pin') ?? null, lagBoundBlocks: lag },
+    trade,
   },
 })
 

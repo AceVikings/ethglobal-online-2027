@@ -31,6 +31,8 @@ export interface CheckConformanceInput {
   indexedBlock: number
   headBlock: number
   schemas: readonly SchemaShape[]
+  /** Common standardized fields; protocol-specific extension fields are allowed. */
+  requiredSchemaFields?: readonly string[]
   markets: readonly LendingMarketSnapshot[]
   indexedTimestamp?: number | null
   previousIndexedTimestamp?: number | null
@@ -74,7 +76,10 @@ function difference(left: readonly string[], right: ReadonlySet<string>): string
 }
 
 /** Compare every peer to the first schema, which is the conformance subject. */
-export function checkShapeAgreement(schemas: readonly SchemaShape[]): ShapeAgreementCheck {
+export function checkShapeAgreement(
+  schemas: readonly SchemaShape[],
+  requiredFields?: readonly string[],
+): ShapeAgreementCheck {
   if (schemas.length === 0) {
     return {
       pass: false,
@@ -86,7 +91,7 @@ export function checkShapeAgreement(schemas: readonly SchemaShape[]): ShapeAgree
     }
   }
 
-  const reference = normalizedFields(schemas[0].fields)
+  const reference = normalizedFields(requiredFields ?? schemas[0].fields)
   const referenceSet = new Set(reference)
   const missingByDeployment: Record<string, string[]> = {}
   const extraByDeployment: Record<string, string[]> = {}
@@ -96,7 +101,7 @@ export function checkShapeAgreement(schemas: readonly SchemaShape[]): ShapeAgree
     const fields = normalizedFields(schema.fields)
     const fieldsSet = new Set(fields)
     const missing = difference(reference, fieldsSet)
-    const extra = difference(fields, referenceSet)
+    const extra = requiredFields ? [] : difference(fields, referenceSet)
     if (missing.length) missingByDeployment[schema.deploymentId] = missing
     if (extra.length) extraByDeployment[schema.deploymentId] = extra
     mismatches += missing.length + extra.length
@@ -167,7 +172,7 @@ export function checkConformance(input: CheckConformanceInput): { checks: Checks
     cidMatch: checkCidMatch(input.servedCid, input.policy.pinnedCid),
     indexingErrors: checkIndexingErrors(input.hasIndexingErrors),
     freshness: checkFreshness(input.indexedBlock, input.headBlock, input.policy.lagBoundBlocks),
-    shapeAgreement: checkShapeAgreement(input.schemas),
+    shapeAgreement: checkShapeAgreement(input.schemas, input.requiredSchemaFields),
     invariants: checkInvariants(input.markets, input.indexedTimestamp, input.previousIndexedTimestamp),
   }
   return { checks, verdict: verdictForChecks(checks) }

@@ -8,7 +8,8 @@ import {
   TransactionId,
   TransferTransaction,
 } from '@hiero-ledger/sdk'
-import { getBytes, keccak256 } from 'ethers'
+import { computeAddress, getBytes, getAddress, keccak256, Signature, SigningKey } from 'ethers'
+import { PrivyClient, type PrivyWallet } from './client.ts'
 
 export type PrivyRawSign = (hash: `0x${string}`) => Promise<`0x${string}`>
 
@@ -20,16 +21,77 @@ export interface PrivyHederaSignerConfig {
   network?: 'hedera:testnet' | 'hedera:mainnet'
 }
 
+export interface PrivyBackedHederaSignerConfig {
+  accountId: string
+  wallet: PrivyWallet
+  client: PrivyClient
+  network?: 'hedera:testnet' | 'hedera:mainnet'
+}
+
 /**
  * Converts Privy's compact secp256k1_sign response into the signature bytes
  * Hedera places in SignaturePair.ECDSASecp256k1.
  */
 export function decodePrivyCompactSignature(signature: string): Uint8Array {
   const bytes = getBytes(signature)
-  if (bytes.length !== 64) {
-    throw new Error(`Privy secp256k1_sign must return a 64-byte compact signature, got ${bytes.length}`)
+  if (bytes.length !== 64 && bytes.length !== 65) {
+    throw new Error(`Privy secp256k1_sign must return a 64- or 65-byte signature, got ${bytes.length}`)
   }
-  return bytes
+  if (bytes.length === 65 && ![0, 1, 27, 28].includes(bytes[64]!)) {
+    throw new Error(`Privy secp256k1_sign returned an invalid recovery byte ${bytes[64]}`)
+  }
+  return bytes.subarray(0, 64)
+}
+
+/** Recover the wallet's compressed secp256k1 key from Privy's r||s response. */
+export function recoverPrivyCompressedPublicKey(
+  hash: `0x${string}`,
+  compactSignature: string,
+  walletAddress: string,
+): string {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error('hash must be a 32-byte 0x-prefixed hex string')
+  const serialized = getBytes(compactSignature)
+  const bytes = decodePrivyCompactSignature(compactSignature)
+  const r = `0x${Buffer.from(bytes.subarray(0, 32)).toString('hex')}`
+  const s = `0x${Buffer.from(bytes.subarray(32)).toString('hex')}`
+  let expectedAddress: string
+  try {
+    expectedAddress = getAddress(walletAddress)
+  } catch {
+    throw new Error('Privy wallet address is not a valid Ethereum address')
+  }
+
+  const recoveryByte = serialized.length === 65 ? serialized[64]! : undefined
+  const parities: readonly (0 | 1)[] = recoveryByte === undefined
+    ? [0, 1]
+    : [recoveryByte === 0 || recoveryByte === 27 ? 0 : 1]
+  for (const yParity of parities) {
+    try {
+      const recovered = SigningKey.recoverPublicKey(hash, Signature.from({ r, s, yParity }))
+      if (getAddress(computeAddress(recovered)) === expectedAddress) {
+        return SigningKey.computePublicKey(recovered, true)
+      }
+    } catch {
+      // Only one recovery parity can correspond to the wallet address.
+    }
+  }
+  throw new Error('Privy signature does not match the wallet address')
+}
+
+/**
+ * Resolves the public key without exporting private key material, then wires
+ * future Hedera body hashes directly to Privy's server-wallet signer.
+ */
+export async function createPrivyBackedHederaSigner(config: PrivyBackedHederaSignerConfig) {
+  const probeHash = keccak256(Buffer.from('clearing-desk:privy-hedera-public-key:v1')) as `0x${string}`
+  const probeSignature = await config.client.signHash(config.wallet.id, probeHash)
+  const publicKey = recoverPrivyCompressedPublicKey(probeHash, probeSignature, config.wallet.address)
+  return createPrivyHederaSigner({
+    accountId: config.accountId,
+    publicKey,
+    network: config.network,
+    rawSign: hash => config.client.signHash(config.wallet.id, hash),
+  })
 }
 
 /**

@@ -54,9 +54,24 @@ function loadConfig(env = process.env, { live = false } = {}) {
     config.operatorKey = assertMatch(required(env, 'HEDERA_OPERATOR_KEY'), PRIVATE_KEY, 'HEDERA_OPERATOR_KEY')
     config.expectedSigner = assertMatch(required(env, 'CONFORMANCE_EXPECTED_SIGNER'), EVM_ADDRESS, 'CONFORMANCE_EXPECTED_SIGNER')
     if (env.ATS_SECURITY_ID) config.securityId = assertMatch(env.ATS_SECURITY_ID, ENTITY_ID, 'ATS_SECURITY_ID')
-    if (env.CONFORMANCE_GATE_ADDRESS) config.gateAddress = assertMatch(env.CONFORMANCE_GATE_ADDRESS, EVM_ADDRESS, 'CONFORMANCE_GATE_ADDRESS')
+    if (env.CLEARING_ESCROW_ADDRESS) config.clearingEscrowAddress = assertMatch(env.CLEARING_ESCROW_ADDRESS, EVM_ADDRESS, 'CLEARING_ESCROW_ADDRESS')
   }
   return config
 }
 
-module.exports = { ENTITY_ID, EVM_ADDRESS, PRIVATE_KEY, BYTES32, loadConfig, required, assertMatch }
+function loadReasonerConfig(env = process.env) {
+  const baseUrl = env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'
+  const timeoutMs = Number(env.DEEPSEEK_TIMEOUT_MS || 10000)
+  new URL(baseUrl)
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 30000) {
+    throw new Error('Invalid DEEPSEEK_TIMEOUT_MS; expected an integer from 100 to 30000')
+  }
+  return {
+    apiKey: required(env, 'DEEPSEEK_API_KEY'),
+    model: required(env, 'DEEPSEEK_MODEL'),
+    baseUrl,
+    timeoutMs,
+  }
+}
+
+module.exports = { ENTITY_ID, EVM_ADDRESS, PRIVATE_KEY, BYTES32, loadConfig, loadReasonerConfig, required, assertMatch }

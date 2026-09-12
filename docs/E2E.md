@@ -7,7 +7,8 @@ transaction, or a passing process exit as proof of settlement. Run it on Hedera 
 
 - Keep secrets in the gitignored `.env`; never write keys, payment headers, or signed payloads to
   committed logs.
-- Use a fresh ECDSA testnet operator and recipient. Fund them only from a free testnet faucet.
+- Use fresh, distinct ECDSA testnet issuer, seller, and buyer accounts. Fund them only from a free
+  testnet faucet.
 - Stop if any provider requires a paid plan, card, deposit, or mainnet asset.
 - Capture transaction IDs, consensus timestamps, topic sequence numbers, contract addresses, and
   Graph block/deployment IDs. Redact authorization headers and private keys.
@@ -25,7 +26,7 @@ x402.json
 ats-refusal.json
 ats-success.json
 hcs-replay.json
-gate.json
+escrow.json
 summary.json
 ```
 
@@ -41,10 +42,10 @@ their secrets.
 | x402 seller | `X402_PAY_TO` | Valid Hedera account ID controlled by the seller |
 | x402 buyer | `HEDERA_OPERATOR_ID`, ECDSA `HEDERA_OPERATOR_KEY` | Mirror Node resolves the account and EVM alias |
 | Testnet funds | HBAR and Circle testnet USDC `0.0.429274` | Balances cover two verdict purchases and network fees |
-| Recipient | `RECIPIENT_ID`, `RECIPIENT_EVM_ADDRESS` | Both forms resolve to the same testnet account |
-| Reasoner | `ANTHROPIC_API_KEY`, explicit `ANTHROPIC_MODEL` | One minimal request succeeds without enabling paid usage |
-| Audit | `HCS_TOPIC_ID`, `CONFORMANCE_GATE_ADDRESS` | Topic is readable; gate signer and policy hash match local config |
-| ATS | `ATS_SECURITY_ID` | Operator has issuer/control-list roles; recipient starts blocked |
+| Seller and buyer | Distinct testnet accounts and EVM aliases | Both resolve; neither is the verdict signer or escrow |
+| Reasoner (optional) | `DEEPSEEK_API_KEY`, explicit `DEEPSEEK_MODEL` | One minimal explanation request succeeds on the available free tier |
+| Audit | `HCS_TOPIC_ID`, `CLEARING_ESCROW_ADDRESS` | Topic is readable; escrow signer and policy hash match local config |
+| ATS | `ATS_SECURITY_ID`, partition, seller, buyer, hold ID | Issuer policy is configured and the pending hold names `ClearingEscrow` |
 
 Run the normal offline gate before spending testnet resources:
 
@@ -60,7 +61,7 @@ node scripts/replay.cjs
 1. Fetch Blocky402 `/supported` and require x402 v2, `exact`, `hedera:testnet`, and fee payer
    `0.0.7162784`.
 2. Query Hashio for chain ID 296.
-3. Query Mirror Node for the operator, recipient, HCS topic, ATS security, and gate contract.
+3. Query Mirror Node for the issuer, seller, buyer, HCS topic, ATS security, and escrow contract.
 4. Record response timestamps and identifiers in `preflight.json`.
 
 Pass: every endpoint agrees on testnet and every configured ID resolves. This stage performs no
@@ -104,27 +105,27 @@ Assertions:
 Pass: balances and the Mirror Node transaction prove one exact testnet-USDC settlement. Save IDs,
 amounts, pre/post balances, and redacted requirements in `x402.json`.
 
-## Stage 4: structural refusal
+## Stage 4: held-trade denial
 
 Create a signed `NON_CONFORMANT`, `STALE`, or `DISAGREEMENT` result from a controlled live policy
-condition, not by editing the returned verdict. Keep the recipient on the ATS block list and run the
-caretaker.
+condition, not by editing the returned verdict. The seller first creates an ATS hold for the exact
+buyer and amount with `ClearingEscrow` as its escrow.
 
 Assertions:
 
-- the Anthropic explanation recommends `REFUSE`; a conflicting response aborts the run;
-- no unblock transaction is submitted;
-- no ATS transfer transaction is constructed or submitted;
-- the recipient remains blocked when read back from ATS/Mirror Node;
-- HCS and the gate independently record `REFUSED` with matching signal, operation, and payment
-  hashes.
+- the deterministic action is `RELEASE`; DeepSeek may explain it but a conflicting recommendation
+  is recorded and cannot change the action;
+- `ClearingEscrow` releases the exact hold and consumes the authorization nonce;
+- no units move to the buyer and the seller's available balance increases by the released amount;
+- a second submission of the same authorization reverts;
+- HCS and the escrow event agree on trade digest, action, evidence hash, and payment reference.
 
-Pass: absence of mutation is supported by before/after control-list state and no matching transfer,
-while both audit anchors identify the refusal. Save evidence in `ats-refusal.json`.
+Pass: Mirror Node and ATS state prove release without a buyer balance change, while both audit
+records identify the denial. Save evidence in `ats-refusal.json`.
 
 ## Stage 5: conformant execution
 
-Choose a live target that satisfies every check, restore the recipient to the block list, and run:
+Create a fresh hold for a live target that satisfies every check, then run:
 
 ```bash
 node scripts/run-caretaker.cjs --execute
@@ -133,16 +134,16 @@ node scripts/run-caretaker.cjs --execute
 Assertions:
 
 - the purchased verdict is `CONFORMANT` and its signer matches the configured signer;
-- the model recommends `ACT` but cannot change the deterministic decision;
-- the unblock transaction reaches consensus before the transfer is submitted;
-- the ATS transfer reaches consensus and the token balance changes by `TRANSFER_AMOUNT` exactly;
-- if transfer is deliberately made to fail in a separate negative run, compensation re-blocks the
-  recipient and the result is `TRANSFER_FAILED`;
-- HCS and gate anchoring are attempted even if one anchor is deliberately unavailable, and a
-  partial failure is reported as unanchored rather than success.
+- the deterministic action is `EXECUTE`; the model can explain but cannot change it;
+- `ClearingEscrow` validates chain, security, partition, seller, buyer, amount, hold ID, hold expiry,
+  policy hash, evidence hash, payment reference, authorization expiry, signer, and nonce;
+- ATS executes the held amount directly to the named buyer and the nonce becomes unusable;
+- altered buyer, amount, hold ID, action, or evidence fields each revert without an ATS mutation;
+- HCS anchoring is attempted after finality; an anchor failure is reported as degraded audit state,
+  never as a failed or duplicated settlement.
 
-Pass: Mirror Node proves ordering and the exact ATS balance/control-list change. Save evidence in
-`ats-success.json`.
+Pass: Mirror Node proves one hold execution and the exact seller/buyer balance delta. Save evidence
+in `ats-success.json`.
 
 ## Stage 6: audit replay and replay protection
 
@@ -156,13 +157,14 @@ Assertions:
 
 - every version-1 `DECISION` message recomputes to its published digest;
 - the successful and refusal messages have distinct sequence numbers and correct operation labels;
-- each gate event matches the HCS signal hash, verdict code, operation hash, and payment reference;
-- `recorded(signalHash)` is true after the first record;
-- submitting the same signal hash again reverts and emits no second event;
+- each escrow event matches the HCS trade digest, action, policy hash, evidence hash, and payment
+  reference;
+- the authorization nonce is consumed after the first settlement;
+- submitting the same authorization again reverts and emits no second settlement event;
 - corrupted HCS content fails local replay validation.
 
-Pass: `failed` is zero for genuine topic messages, the gate rejects replay, and cross-anchor fields
-match. Save the replay output and event query as `hcs-replay.json` and `gate.json`.
+Pass: `failed` is zero for genuine topic messages, the escrow rejects replay, and cross-record
+fields match. Save the replay output and event query as `hcs-replay.json` and `escrow.json`.
 
 ## Final acceptance matrix
 
@@ -175,11 +177,11 @@ pass.
 | Live Graph | Six deployments queried; derived signed verdict verified |
 | x402 negative | Tampered requirements and failed settlement return no verdict |
 | x402 positive | One exact USDC settlement confirmed on Mirror Node |
-| ATS refusal | Recipient stays blocked and no transfer exists |
-| ATS success | Unblock precedes transfer; exact balance delta confirmed |
-| Compensation | Forced transfer failure restores the block-list state |
+| ATS denial | Exact hold released; buyer balance unchanged |
+| ATS approval | Exact hold executed once; seller/buyer balance delta confirmed |
+| Tamper resistance | Altered authorization fields revert before ATS mutation |
 | HCS | Both decisions replay with valid digests |
-| Gate | Events match HCS and duplicate signal hash reverts |
+| Escrow | Events match HCS and duplicate authorization nonce reverts |
 
 Do not describe the project as end-to-end verified until this matrix has been completed against live
 testnet resources. Testnet transaction fees are not fiat payments, but the run must still stop if the

@@ -2,6 +2,7 @@ import {
   GraphGatewayClient,
   LENDING_DEPLOYMENTS,
   LENDING_MARKETS_QUERY,
+  REQUIRED_MARKET_FIELDS,
   SubgraphMcpClient,
   checkConformance,
   graphQueryHash,
@@ -130,6 +131,9 @@ function validateSnapshot(value: GraphSnapshot, expectedDeploymentId: string): G
   if (!Number.isSafeInteger(meta.block?.number) || meta.block.number < 0) {
     throw new Error(`Graph block was invalid for ${expectedDeploymentId}`)
   }
+  if (meta.deployment !== expectedDeploymentId) {
+    throw new Error(`Graph served deployment ${meta.deployment} instead of ${expectedDeploymentId}`)
+  }
   return value
 }
 
@@ -204,6 +208,7 @@ export function createVerdictEvaluator(config: VerdictEvaluatorConfig): VerdictE
       indexedBlock: target._meta.block.number,
       headBlock: currentHead,
       schemas: orderedSchemas,
+      requiredSchemaFields: REQUIRED_MARKET_FIELDS,
       markets: target.markets,
       indexedTimestamp: timestamp,
       previousIndexedTimestamp: previousTimestamp,

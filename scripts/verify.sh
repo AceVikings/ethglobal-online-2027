@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-address="${CONFORMANCE_GATE_ADDRESS:-${2:-}}"
-command=(forge verify-contract "$address" src/ConformanceGate.sol:ConformanceGate --chain-id 296 --verifier sourcify --verifier-url https://sourcify.dev/server)
+address="${CLEARING_ESCROW_ADDRESS:-${2:-}}"
+constructor_args="${CLEARING_ESCROW_CONSTRUCTOR_ARGS:-}"
+command=(forge verify-contract "$address" src/ClearingEscrow.sol:ClearingEscrow --chain-id 296 --verifier sourcify --verifier-url https://sourcify.dev/server)
+if [[ -n "$constructor_args" ]]; then
+  command+=(--constructor-args "$constructor_args")
+fi
 if [[ "${1:-}" != "--execute" ]]; then
-  echo "dry-run: CONFORMANCE_GATE_ADDRESS=0x... ${command[*]}"
+  echo "dry-run: CLEARING_ESCROW_ADDRESS=0x... CLEARING_ESCROW_CONSTRUCTOR_ARGS=0x... ${command[*]}"
   exit 0
 fi
-: "${address:?set CONFORMANCE_GATE_ADDRESS or pass it as the second argument}"
+: "${address:?set CLEARING_ESCROW_ADDRESS or pass it as the second argument}"
+: "${constructor_args:?set CLEARING_ESCROW_CONSTRUCTOR_ARGS to the ABI-encoded signer and policy hash}"
 cd "$(dirname "$0")/../contracts"
 "${command[@]}"
