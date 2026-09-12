@@ -35,11 +35,11 @@ function trustedRequirement(expectedPayTo: string, requirement: PaymentRequireme
 /** Concrete x402 v2 buyer. Credentials remain in the consumer process only. */
 export function createPaymentFetch(config: AdapterConfig): PaymentFetch {
   const env = config.env ?? process.env
-  const accountId = required(env, 'HEDERA_ACCOUNT_ID')
-  const privateKeyText = required(env, 'HEDERA_PRIVATE_KEY')
-  const expectedPayTo = required(env, 'X402_EXPECTED_PAY_TO')
-  if (!isValidHederaEntityId(accountId)) throw new Error('HEDERA_ACCOUNT_ID must be a Hedera account ID')
-  if (!isValidHederaEntityId(expectedPayTo)) throw new Error('X402_EXPECTED_PAY_TO must be a Hedera account ID')
+  const accountId = required(env, 'HEDERA_OPERATOR_ID')
+  const privateKeyText = required(env, 'HEDERA_OPERATOR_KEY')
+  const expectedPayTo = required(env, 'X402_PAY_TO')
+  if (!isValidHederaEntityId(accountId)) throw new Error('HEDERA_OPERATOR_ID must be a Hedera account ID')
+  if (!isValidHederaEntityId(expectedPayTo)) throw new Error('X402_PAY_TO must be a Hedera account ID')
   if (env.X402_NETWORK && env.X402_NETWORK !== NETWORK) throw new Error(`only ${NETWORK} is supported`)
 
   // Requiring ECDSA prevents constructing a payer with an incompatible ED25519 key.

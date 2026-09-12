@@ -16,10 +16,20 @@ async function decideAndAct(input, deps) {
   const purchased = await deps.buyVerdict(input.request)
   const verified = await deps.verifyVerdict(purchased.verdict)
   if (!verified.ok) throw new Error(`Verdict signature mismatch; recovered ${verified.recovered}`)
+  if (input.expectedSigner && verified.recovered.toLowerCase() !== input.expectedSigner.toLowerCase()) {
+    throw new Error(`Unexpected verdict signer ${verified.recovered}`)
+  }
   if (!(purchased.verdict.verdict in VERDICT_CODE)) throw new Error(`Unknown verdict ${purchased.verdict.verdict}`)
 
   const hash = await deps.signalHash(purchased.verdict)
   const conformant = purchased.verdict.verdict === 'CONFORMANT'
+  const reasoning = deps.reasonVerdict
+    ? await deps.reasonVerdict(purchased.verdict)
+    : { recommendation: conformant ? 'ACT' : 'REFUSE', rationale: 'Deterministic policy evaluation' }
+  const requiredRecommendation = conformant ? 'ACT' : 'REFUSE'
+  if (reasoning.recommendation !== requiredRecommendation) {
+    throw new Error(`Agent recommendation ${reasoning.recommendation} conflicts with signed verdict ${purchased.verdict.verdict}`)
+  }
   let operation
   if (conformant) {
     const unblock = await deps.controlList.unblock(input.recipientId)
@@ -64,7 +74,7 @@ async function decideAndAct(input, deps) {
     ...(deps.recordGate && gateResult.status === 'rejected' ? { gate: gateResult.reason?.message || String(gateResult.reason) } : {}),
   }
   if (Object.keys(anchorErrors).length) throw new AnchorFailure({ operation, hcs, gate, anchor: message, anchorErrors })
-  return { purchased, operation, hcs, gate, anchor: message }
+  return { purchased, reasoning, operation, hcs, gate, anchor: message }
 }
 
 module.exports = { VERDICT_CODE, AnchorFailure, decideAndAct }

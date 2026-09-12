@@ -6,6 +6,12 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "test": "npm run test --workspaces --if-present",
+    "test:contracts": "forge test --root contracts",
+    "check": "npm test && npm run test:contracts",
+    "start:service": "npm start --workspace @desk/service",
+    "start:mcp": "npm start --workspace @desk/mcp-server",
+    "dry-run:caretaker": "node scripts/run-caretaker.cjs",
+    "dry-run:sweep": "node scripts/sweep.cjs",
     "build": "npm run build --workspaces --if-present"
   }
 }
