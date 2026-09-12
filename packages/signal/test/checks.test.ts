@@ -59,6 +59,17 @@ test('shape agreement ignores ordering and reports exact field drift', () => {
   )
 })
 
+test('standardized shape agreement permits protocol-specific extension fields', () => {
+  const result = checkShapeAgreement([
+    { deploymentId: 'subject', fields: ['id', 'totalValueLockedUSD', 'subjectExtension'] },
+    { deploymentId: 'peer', fields: ['peerExtension', 'totalValueLockedUSD', 'id'] },
+  ], ['id', 'totalValueLockedUSD'])
+
+  assert.equal(result.pass, true)
+  assert.deepEqual(result.extraByDeployment, {})
+  assert.equal(result.fieldsCompared, 2)
+})
+
 test('invariants report bad and missing numeric values plus timestamp regression', () => {
   const result = checkInvariants(
     [{ id: 'bad', totalValueLockedUSD: -1, totalBorrowBalanceUSD: 5, totalDepositBalanceUSD: 4 }],

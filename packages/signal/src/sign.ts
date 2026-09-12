@@ -1,6 +1,7 @@
-import { keccak256, toUtf8Bytes, SigningKey, computeAddress, solidityPackedKeccak256 } from 'ethers'
-import type { VerdictPayload, SignedVerdict, Verdict } from './types.ts'
-import { VERDICT_CODE } from './types.ts'
+import { keccak256, toUtf8Bytes, SigningKey, computeAddress, TypedDataEncoder } from 'ethers'
+import type {
+  ClearingAuthorization, Policy, SignedVerdict, VerdictPayload,
+} from './types.ts'
 
 /**
  * Canonical JSON: recursively sorted keys, no whitespace, UTF-8.
@@ -34,14 +35,26 @@ export function canonicalJSON(value: unknown): string {
 
 /** keccak256 over the canonical payload, excluding any signature field. */
 export function signalHash(payload: VerdictPayload): string {
-  const { ...rest } = payload as VerdictPayload & { signature?: string }
-  delete (rest as { signature?: string }).signature
-  return keccak256(toUtf8Bytes(canonicalJSON(rest)))
+  // Whitelist the v1 envelope so independently signed clearing fields may be
+  // attached without changing the legacy CLI/MCP verification digest.
+  const value = {
+    v: payload.v,
+    requestId: payload.requestId,
+    issuedAt: payload.issuedAt,
+    standard: payload.standard,
+    subject: payload.subject,
+    policy: payload.policy,
+    checks: payload.checks,
+    verdict: payload.verdict,
+    evidence: payload.evidence,
+    signer: payload.signer,
+  }
+  return keccak256(toUtf8Bytes(canonicalJSON(value)))
 }
 
 /**
- * Raw secp256k1 over the 32-byte digest — deliberately NOT EIP-191 prefixed,
- * so ConformanceGate._recover can ecrecover it directly.
+ * Raw secp256k1 signature retained for legacy CLI/MCP verification of the
+ * derived verdict envelope. ClearingEscrow uses the EIP-712 signature below.
  */
 export function signVerdict(payload: VerdictPayload, privateKey: string): SignedVerdict {
   const key = new SigningKey(privateKey)
@@ -60,19 +73,60 @@ export function verifyVerdict(signed: SignedVerdict): { ok: boolean; recovered: 
   return { ok: recovered.toLowerCase() === signed.signer.toLowerCase(), recovered }
 }
 
-/**
- * The digest each HCS message commits to.
- * Mirrors ConformanceGate.anchorDigest — keep the two in lockstep.
- */
-export function anchorDigest(args: {
-  paymentTxId: string
-  signalHash: string
-  opCalldataHash: string
-  verdict: Verdict
-  ts: string
-}): string {
-  return solidityPackedKeccak256(
-    ['string', 'bytes32', 'bytes32', 'uint8', 'string'],
-    [args.paymentTxId, args.signalHash, args.opCalldataHash, VERDICT_CODE[args.verdict], args.ts],
-  )
+export const CLEARING_AUTHORIZATION_TYPES: Record<string, Array<{ name: string; type: string }>> = {
+  Verdict: [
+    { name: 'chainId', type: 'uint256' },
+    { name: 'verifyingContract', type: 'address' },
+    { name: 'security', type: 'address' },
+    { name: 'partition', type: 'bytes32' },
+    { name: 'seller', type: 'address' },
+    { name: 'buyer', type: 'address' },
+    { name: 'amount', type: 'uint256' },
+    { name: 'holdId', type: 'uint256' },
+    { name: 'holdExpiry', type: 'uint256' },
+    { name: 'action', type: 'uint8' },
+    { name: 'policyHash', type: 'bytes32' },
+    { name: 'evidenceHash', type: 'bytes32' },
+    { name: 'paymentRef', type: 'bytes32' },
+    { name: 'issuedAt', type: 'uint256' },
+    { name: 'authorizationExpiry', type: 'uint256' },
+    { name: 'nonce', type: 'bytes32' },
+  ],
+}
+
+function clearingDomain(authorization: ClearingAuthorization) {
+  return {
+    name: 'AI Clearing Desk',
+    version: '1',
+    chainId: authorization.chainId,
+    verifyingContract: authorization.verifyingContract,
+  }
+}
+
+/** Exact digest consumed by ClearingEscrow.hashAuthorization. */
+export function clearingAuthorizationHash(authorization: ClearingAuthorization): string {
+  return TypedDataEncoder.hash(clearingDomain(authorization), CLEARING_AUTHORIZATION_TYPES, authorization)
+}
+
+export function signClearingAuthorization(authorization: ClearingAuthorization, privateKey: string): string {
+  return new SigningKey(privateKey).sign(clearingAuthorizationHash(authorization)).serialized
+}
+
+export function verifyClearingAuthorization(
+  authorization: ClearingAuthorization,
+  signature: string,
+  expectedSigner: string,
+): { ok: boolean; recovered: string } {
+  const recovered = computeAddress(SigningKey.recoverPublicKey(clearingAuthorizationHash(authorization), signature))
+  return { ok: recovered.toLowerCase() === expectedSigner.toLowerCase(), recovered }
+}
+
+/** Canonical policy commitment deployed into ClearingEscrow. */
+export function clearingPolicyHash(standard: string, policy: Policy): string {
+  return keccak256(toUtf8Bytes(canonicalJSON({ standard, policy })))
+}
+
+/** Derived evidence commitment; raw Graph rows remain seller-private. */
+export function clearingEvidenceHash(payload: Omit<VerdictPayload, 'v' | 'requestId' | 'issuedAt' | 'signer'>): string {
+  return keccak256(toUtf8Bytes(canonicalJSON(payload)))
 }

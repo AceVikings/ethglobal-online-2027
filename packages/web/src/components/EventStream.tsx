@@ -17,13 +17,15 @@ export function EventStream({ trades }: { trades: Trade[] }) {
     if (!selected) return;
     const controller = new AbortController();
     setEventState({ status: "loading", events: [] });
-    fetchTradeEvents(selected.tradeDigest, controller.signal)
+    const refresh = () => fetchTradeEvents(selected.tradeDigest, controller.signal)
       .then((events) => setEventState({ status: "ready", events }))
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setEventState({ status: "error", events: [] });
       });
-    return () => controller.abort();
+    void refresh();
+    const timer = window.setInterval(refresh, 2_000);
+    return () => { controller.abort(); window.clearInterval(timer); };
   }, [selected]);
 
   if (!selected) return null;

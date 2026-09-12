@@ -1,6 +1,12 @@
 node_modules/
 dist/
 .env
+.context/
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
 .env.local
 out/
 cache/

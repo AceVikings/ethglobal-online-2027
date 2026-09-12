@@ -71,5 +71,6 @@ test('the raw signer digest matches the digest used by the native Hiero ECDSA si
 })
 
 test('rejects signatures that cannot be inserted into Hedera SignaturePair', () => {
-  assert.throws(() => decodePrivyCompactSignature(`0x${'aa'.repeat(65)}`), /64-byte compact/)
+  assert.throws(() => decodePrivyCompactSignature(`0x${'aa'.repeat(66)}`), /64- or 65-byte/)
+  assert.throws(() => decodePrivyCompactSignature(`0x${'aa'.repeat(64)}02`), /invalid recovery byte/)
 })

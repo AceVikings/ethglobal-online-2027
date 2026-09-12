@@ -8,7 +8,7 @@
     "test": "node --test test/*.test.cjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "0.125.0",
+    "@desk/privy-hedera-poc": "0.1.0",
     "@desk/signal": "0.1.0",
     "@hashgraph/asset-tokenization-sdk": "8.0.0",
     "@hiero-ledger/sdk": "2.88.0",

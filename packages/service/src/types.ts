@@ -1,10 +1,12 @@
 import type { IncomingMessage } from 'node:http'
-import type { Checks, Policy, Subject } from '@desk/signal'
+import type { Checks, ClearingTrade, Policy, Subject } from '@desk/signal'
 
 export interface VerdictRequest {
+  clientRequestId: string
   standard: 'messari/lending-v3.1'
   subject: Subject
   policy: Policy
+  trade: ClearingTrade
 }
 
 export interface Evaluation {

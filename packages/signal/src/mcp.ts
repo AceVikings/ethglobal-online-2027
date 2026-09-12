@@ -100,11 +100,11 @@ export class SubgraphMcpClient {
     query: string,
     variables?: Record<string, unknown>,
   ): Promise<T> {
-    return this.callTool(SUBGRAPH_MCP_TOOLS.executeQuery, {
+    return this.callTool<T>(SUBGRAPH_MCP_TOOLS.executeQuery, {
       deployment_id: deploymentId,
       query,
       ...(variables ? { variables } : {}),
-    })
+    }).then((result) => assertMcpDeployment(result, deploymentId))
   }
 
   getSchemaByDeploymentId<T = unknown>(deploymentId: string): Promise<T> {
@@ -116,11 +116,11 @@ export class SubgraphMcpClient {
     query: string,
     variables?: Record<string, unknown>,
   ): Promise<T> {
-    return this.callTool(SUBGRAPH_MCP_TOOLS.executeQueryByIpfsHash, {
+    return this.callTool<T>(SUBGRAPH_MCP_TOOLS.executeQueryByIpfsHash, {
       ipfs_hash: ipfsHash,
       query,
       ...(variables ? { variables } : {}),
-    })
+    }).then((result) => assertMcpDeployment(result, ipfsHash))
   }
 
   getSchemaByIpfsHash<T = unknown>(ipfsHash: string): Promise<T> {
@@ -259,4 +259,14 @@ export class SubgraphMcpClient {
     }
     this.#pending.clear()
   }
+}
+
+function assertMcpDeployment<T>(result: T, expectedDeploymentId: string): T {
+  const data = result && typeof result === 'object' ? (result as { data?: unknown }).data : undefined
+  const meta = data && typeof data === 'object' ? (data as { _meta?: unknown })._meta : undefined
+  const deployment = meta && typeof meta === 'object' ? (meta as { deployment?: unknown }).deployment : undefined
+  if (deployment !== expectedDeploymentId) {
+    throw new Error(`MCP deployment metadata mismatch; expected ${expectedDeploymentId}`)
+  }
+  return result
 }

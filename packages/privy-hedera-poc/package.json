@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": "./src/index.ts",
   "scripts": {
-    "test": "node --experimental-strip-types --test test/*.test.ts"
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "live-check": "node --experimental-strip-types scripts/live-check.ts"
   },
   "dependencies": {
     "@hiero-ledger/sdk": "2.88.0",

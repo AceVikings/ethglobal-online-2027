@@ -1,7 +1,6 @@
 'use strict'
 
-const { Contract, JsonRpcProvider, Wallet } = require('ethers')
-const GATE_ABI = ['function record(bytes32,uint8,bytes32,bytes32,bytes)', 'function recorded(bytes32) view returns (bool)']
+const { JsonRpcProvider, Wallet } = require('ethers')
 
 function hederaClient(config) {
   const { Client, AccountId, PrivateKey } = require('@hiero-ledger/sdk')
@@ -12,18 +11,37 @@ async function submitHcsMessage(config, topicId, message) {
   const { TopicMessageSubmitTransaction } = require('@hiero-ledger/sdk')
   const client = hederaClient(config)
   try {
-    const response = await new TopicMessageSubmitTransaction().setTopicId(topicId).setMessage(JSON.stringify(message)).execute(client)
+    const encoded = JSON.stringify(message)
+    if (Buffer.byteLength(encoded) > 1024) throw new Error('HCS audit message exceeds 1024 bytes')
+    const response = await new TopicMessageSubmitTransaction().setTopicId(topicId).setMessage(encoded).execute(client)
     const receipt = await response.getReceipt(client)
     return { transactionId: response.transactionId.toString(), status: receipt.status.toString() }
   } finally { client.close() }
 }
 
-async function recordGate(config, args) {
-  const signer = new Wallet(config.operatorKey, new JsonRpcProvider(config.rpcUrl))
-  const gate = new Contract(config.gateAddress, GATE_ABI, signer)
-  const tx = await gate.record(args.signalHash, args.verdictCode, args.opHash, args.paymentRef, args.signature)
-  const receipt = await tx.wait()
-  return { transactionHash: receipt.hash }
+async function assertRestrictedTopic(config, topicId, fetchImpl = fetch) {
+  const url = `${config.mirrorNodeUrl.replace(/\/$/, '')}/api/v1/topics/${topicId}`
+  const response = await fetchImpl(url)
+  if (!response.ok) throw new Error(`Mirror Node returned ${response.status} for HCS topic`)
+  const topic = await response.json()
+  if (!topic.submit_key?.key) throw new Error('HCS audit topic must have a submit key')
+  return { topicId, restricted: true }
 }
 
-module.exports = { GATE_ABI, hederaClient, submitHcsMessage, recordGate }
+function hederaEvmSigner(config) {
+  return new Wallet(config.operatorKey, new JsonRpcProvider(config.rpcUrl))
+}
+
+async function mirrorContractResult(config, transactionHash, fetchImpl = fetch) {
+  const url = `${config.mirrorNodeUrl.replace(/\/$/, '')}/api/v1/contracts/results/${transactionHash}`
+  const response = await fetchImpl(url)
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error(`Mirror Node returned ${response.status} for settlement transaction`)
+  const result = await response.json()
+  if (result.error_message || (result.result && result.result !== 'SUCCESS')) {
+    throw new Error(`Mirror Node reports failed settlement: ${result.error_message || result.result}`)
+  }
+  return result
+}
+
+module.exports = { assertRestrictedTopic, hederaClient, hederaEvmSigner, mirrorContractResult, submitHcsMessage }
