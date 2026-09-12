@@ -4,6 +4,9 @@ services:
     runtime: static
     buildCommand: npm ci --ignore-scripts && npm run build --workspace @conformance-desk/web
     staticPublishPath: packages/web/dist
+    envVars:
+      - key: VITE_PRIVY_APP_ID
+        value: cmtyhw5k700fo0cia82y7o5pg
     routes:
       - type: rewrite
         source: /api/*

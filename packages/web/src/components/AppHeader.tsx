@@ -2,8 +2,11 @@ import { ArrowUpRight, Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
+import { AccountButton } from "./AccountButton";
+
 const navItems = [
   { label: "Overview", to: "/" },
+  { label: "Live demo", to: "/?section=live" },
   { label: "Flow", to: "/?section=flow" },
   { label: "Trades", to: "/?section=desk" },
   { label: "Activity", to: "/?section=activity" },
@@ -47,13 +50,15 @@ export function AppHeader() {
           ))}
         </nav>
 
-        <Link
-          to="/?section=desk"
-          className="pill-action hidden min-h-10 items-center justify-self-end gap-2 bg-action px-6 text-sm font-medium text-white focus-visible:ring-2 focus-visible:ring-active focus-visible:ring-offset-2 focus-visible:ring-offset-canvas md:inline-flex"
-        >
-          View clearing desk
-          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </Link>
+        <div className="hidden items-center justify-self-end gap-3 md:flex">
+          <Link
+            to="/?section=desk"
+            className="hidden min-h-10 items-center gap-1.5 px-2 text-sm font-medium text-primary-copy focus-visible:ring-2 focus-visible:ring-active xl:inline-flex"
+          >
+            Open desk <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+          <AccountButton />
+        </div>
 
         <button
           type="button"
@@ -82,9 +87,16 @@ export function AppHeader() {
               </Link>
             ))}
           </nav>
-          <Link to="/?section=desk" onClick={() => setOpen(false)} className="pill-action inline-flex min-h-12 items-center justify-between bg-action px-6 font-medium text-white focus-visible:ring-2 focus-visible:ring-active">
-            View clearing desk <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
+          <div className="space-y-3">
+            <Link
+              to="/?section=desk"
+              onClick={() => setOpen(false)}
+              className="inline-flex min-h-12 w-full items-center justify-between rounded-full border border-hairline bg-surface px-6 font-medium text-primary-copy focus-visible:ring-2 focus-visible:ring-active"
+            >
+              Open clearing desk <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <AccountButton mobile />
+          </div>
         </div>
       ) : null}
     </header>

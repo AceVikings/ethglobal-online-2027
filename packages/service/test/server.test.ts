@@ -114,12 +114,62 @@ test('allows only the exact configured frontend origin to read the public API', 
 
     const preflight = await fetch(url, {
       method: 'OPTIONS',
-      headers: { origin: 'https://desk.example', 'access-control-request-method': 'GET' },
+      headers: {
+        origin: 'https://desk.example',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'authorization,content-type',
+      },
     })
     assert.equal(preflight.status, 204)
-    assert.equal(preflight.headers.get('access-control-allow-methods'), 'GET')
+    assert.equal(preflight.headers.get('access-control-allow-methods'), 'GET, POST')
+    assert.equal(preflight.headers.get('access-control-allow-headers'), 'Accept, Authorization, Content-Type')
   } finally {
     cors.close()
+  }
+})
+
+test('runs public verification only for an existing confirmed trade', async () => {
+  const confirmedTrade = { tradeDigest: `0x${'ab'.repeat(32)}`, state: 'EXECUTED' }
+  const verification = {
+    tradeDigest: confirmedTrade.tradeDigest,
+    verifiedAt: '2026-09-12T10:05:00.000Z',
+    status: 'VERIFIED',
+    stages: [{ id: 'settlement', label: 'Hedera settlement', status: 'PASS', detail: 'Mirror finality confirmed.' }],
+    summary: { passed: 1, failed: 0, total: 1 },
+  }
+  let verified: unknown = null
+  const verifyingServer = createVerdictServer({
+    signingKey: key,
+    paymentGate: { async authorize() { return { ok: false } } },
+    async evaluator() { throw new Error('unused') },
+    trades: {
+      async list() { return { trades: [confirmedTrade], nextCursor: null } },
+      async get(digest) { return digest === confirmedTrade.tradeDigest ? confirmedTrade : null },
+      async events() { return [] },
+    },
+    tradeVerifier: {
+      async verify(candidate) { verified = candidate; return verification as any },
+    },
+  })
+  await new Promise<void>((resolve) => verifyingServer.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = verifyingServer.address()
+    if (!address || typeof address === 'string') throw new Error('missing listen address')
+    const endpoint = `http://127.0.0.1:${address.port}/api/v1/trades/${confirmedTrade.tradeDigest}/verify`
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { authorization: 'Bearer public-session', 'content-type': 'application/json' },
+      body: '{}',
+    })
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), verification)
+    assert.equal(verified, confirmedTrade)
+
+    const missing = await fetch(endpoint.replace(confirmedTrade.tradeDigest, `0x${'ff'.repeat(32)}`), { method: 'POST' })
+    assert.equal(missing.status, 404)
+    assert.deepEqual(await missing.json(), { error: 'trade_not_found' })
+  } finally {
+    verifyingServer.close()
   }
 })
 
@@ -282,5 +332,49 @@ test('settles only after evaluation and fails closed on settlement failure', asy
     assert.deepEqual(events, ['evaluate', 'settle'])
   } finally {
     failing.close()
+  }
+})
+
+test('authenticates a Privy session and streams live-clearance stages', async () => {
+  const streamed = createVerdictServer({
+    signingKey: key,
+    paymentGate: { async authorize() { return { ok: false } } },
+    async evaluator() { throw new Error('unused') },
+    async verifyAccessToken(token) {
+      assert.equal(token, 'privy-access-token')
+      return { userId: 'did:privy:demo-user' }
+    },
+    liveClearance: {
+      async run(owner, signed, onStage) {
+        assert.equal(owner, 'did:privy:demo-user')
+        assert.equal(signed.signature, '0xsigned')
+        await onStage({
+          id: 'mandate', status: 'confirmed', title: 'Mandate authenticated', detail: 'Wallet signature matched.',
+        })
+        return { runId: 'run-1', tradeDigest: `0x${'ab'.repeat(32)}`, proof: {} as any }
+      },
+    },
+  })
+  await new Promise<void>((resolve) => streamed.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = streamed.address()
+    if (!address || typeof address === 'string') throw new Error('missing listen address')
+    const endpoint = `http://127.0.0.1:${address.port}/api/v1/live-clearances`
+    const unauthorized = await fetch(endpoint, { method: 'POST', body: '{}' })
+    assert.equal(unauthorized.status, 401)
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { authorization: 'Bearer privy-access-token', 'content-type': 'application/json' },
+      body: JSON.stringify({ mandate: {}, signature: '0xsigned' }),
+    })
+    assert.equal(response.status, 200)
+    assert.equal(response.headers.get('content-type'), 'application/x-ndjson; charset=utf-8')
+    const lines = (await response.text()).trim().split('\n').map((line) => JSON.parse(line))
+    assert.deepEqual(lines.map((line) => line.type), ['stage', 'complete'])
+    assert.equal(lines[0].stage.id, 'mandate')
+    assert.equal(lines[1].result.runId, 'run-1')
+  } finally {
+    streamed.close()
   }
 })

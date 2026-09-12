@@ -10,7 +10,7 @@ bill for an idle always-on process under request-based billing.
 The repository's `render.yaml` defines the preferred static site. Connect this repository
 in Render. Render builds `packages/web`, proxies `/api/*` to Cloud Run, and rewrites all
 remaining application routes to `index.html`. The browser therefore uses a same-origin API path
-and does not need a public build-time environment variable. A manually configured Static Site may
+and uses the public `VITE_PRIVY_APP_ID` declared in the blueprint. A manually configured Static Site may
 instead set `VITE_API_BASE_URL` to the public Cloud Run URL; this value is not a secret. Production
 builds also default to the deployed Cloud Run API when the variable is absent, while Vite development
 continues to use its local `/api` proxy. The dashboard uses hash routing so deep links also work when
@@ -25,9 +25,10 @@ Registry and deploys it after tests pass on `main`. Authentication uses GitHub
 OIDC and Workload Identity Federation; there is no long-lived Google service
 account key in GitHub.
 
-The service uses one vCPU, 512 MiB memory, zero minimum instances, and a maximum
-of one instance. Its `/data` mount is a read-only Cloud Storage bucket holding
-the completed, chain-confirmed caretaker state.
+The service uses one vCPU, 1 GiB memory, zero minimum instances, one-request concurrency, and a
+maximum of one instance. Its writable `/data` Cloud Storage mount holds isolated live-run checkpoints;
+the public read model is replaced only after the new run passes replay. The endpoint also enforces one
+active run, a ten-minute cooldown, and a three-run daily ceiling.
 
 Repository variables required by the workflow are:
 
@@ -41,21 +42,31 @@ GCP_RUNTIME_SERVICE_ACCOUNT=conformance-desk-runtime@ethonline-476311.iam.gservi
 GCP_DEPLOY_SERVICE_ACCOUNT=github-conformance-deploy@ethonline-476311.iam.gserviceaccount.com
 GCP_WORKLOAD_IDENTITY_PROVIDER=projects/<number>/locations/global/workloadIdentityPools/github-actions/providers/ethglobal-online-2027
 X402_PAY_TO=0.0.<seller>
+X402_FEE_PAYER=0.0.<facilitator-fee-payer>
+HTS_USDC_ID=0.0.<canonical-testnet-usdc>
+PRIVY_APP_ID=<public-app-id>
+PRIVY_HEDERA_ACCOUNT_ID=0.0.<agent-payer>
+HEDERA_OPERATOR_ID=0.0.<relayer>
+HEDERA_SELLER_ID=0.0.<ats-seller>
 ATS_SECURITY_ID=0.0.<security>
+ATS_SECURITY_EVM_ADDRESS=0x<security>
+ATS_PARTITION=0x<partition>
+CLEARING_ESCROW_ADDRESS=0x<escrow>
+CONFORMANCE_EXPECTED_SIGNER=0x<verdict-signer>
+POLICY_HASH=0x<policy>
 HCS_TOPIC_ID=0.0.<topic>
 CORS_ALLOWED_ORIGIN=https://your-frontend.onrender.com,http://localhost:5173,http://127.0.0.1:5173
 ```
 
-`graph-studio-key` and `verdict-signer-key` live in Google Secret Manager and
+`graph-studio-key`, `verdict-signer-key`, `privy-app-secret`, `privy-wallet-id`,
+`hedera-operator-key`, and `hedera-seller-key` live in Google Secret Manager and
 are exposed only to the Cloud Run runtime identity. Never add them to the
 frontend or commit a populated `.env` file.
 
-The API projects completed, chain-confirmed caretaker state from the mounted JSON
-file. The caretaker itself is currently a one-shot command, not a hosted queue
-worker. For the hackathon demo, run the real caretaker flow and upload its
-completed state file to the bucket. A continuously autonomous production system
-should use durable transactional storage and invoke the caretaker through an
-authenticated Cloud Run Job or task queue.
+`POST /api/v1/live-clearances` verifies a Privy access token and embedded-wallet signature before
+running the real issuance, hold, caretaker, and replay scripts inside Cloud Run. It streams sanitized
+NDJSON progress to the browser. A continuously autonomous production system should replace the
+single-instance file lock with transactional storage and invoke each run through Cloud Tasks.
 
 Production API: <https://conformance-desk-api-4p35sr23vq-uc.a.run.app>
 

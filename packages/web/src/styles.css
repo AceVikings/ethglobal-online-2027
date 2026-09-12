@@ -183,6 +183,40 @@ button {
   background: var(--color-success);
 }
 
+.live-orbit {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+.live-orbit-one {
+  width: 38rem;
+  height: 38rem;
+  right: -17rem;
+  top: -18rem;
+}
+
+.live-orbit-two {
+  width: 24rem;
+  height: 24rem;
+  left: -14rem;
+  bottom: -12rem;
+}
+
+.live-stage {
+  transition: background-color 250ms ease, transform 250ms ease;
+}
+
+.live-stage.is-running {
+  background: rgba(255, 255, 255, 0.055);
+  transform: translateX(4px);
+}
+
+.live-stage.is-confirmed {
+  background: rgba(110, 231, 183, 0.035);
+}
+
 .trade-lifecycle-line.is-confirmed::after {
   transform: scaleX(1);
 }
@@ -222,6 +256,14 @@ button {
   .trade-lifecycle-stage.is-confirmed .trade-lifecycle-marker {
     animation: lifecycle-confirm 400ms cubic-bezier(0, 0, 0.2, 1) both;
   }
+
+  .live-radio {
+    animation: live-radio-pulse 1200ms ease-in-out infinite;
+  }
+
+  .live-orbit-one {
+    animation: orbit-drift 18s ease-in-out infinite alternate;
+  }
 }
 
 @media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
@@ -250,6 +292,16 @@ button {
 @keyframes lifecycle-confirm {
   from { transform: scale(0.8); }
   to { transform: scale(1); }
+}
+
+@keyframes live-radio-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+@keyframes orbit-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-3rem, 2rem, 0); }
 }
 
 @keyframes fade-rise {

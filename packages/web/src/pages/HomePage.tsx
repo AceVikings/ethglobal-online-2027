@@ -6,10 +6,11 @@ import { fetchTrades, type TradeListResponse } from "../api/trades";
 import { ClearingFlow } from "../components/ClearingFlow";
 import { DecisionCard } from "../components/DecisionCard";
 import { EventStream } from "../components/EventStream";
+import { LiveClearanceConsole } from "../components/LiveClearanceConsole";
 
 const TIMING = { heading: "0ms", copy: "200ms", action: "400ms" } as const;
 const entranceDelay = (delay: string) => ({ "--entrance-delay": delay }) as CSSProperties;
-const sectionIds = new Set(["flow", "desk", "activity", "proof"]);
+const sectionIds = new Set(["live", "flow", "desk", "activity", "proof"]);
 
 type DeskState =
   | { status: "loading"; data: null }
@@ -97,6 +98,8 @@ export function HomePage() {
           </Link>
         </div>
       </section>
+
+      <LiveClearanceConsole onComplete={() => setReloadKey((value) => value + 1)} />
 
       <ClearingFlow trade={desk.status === "ready" ? desk.data.trades[0] ?? null : null} />
 

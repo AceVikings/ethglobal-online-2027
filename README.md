@@ -2,9 +2,10 @@
 
 # Clearing AI — The Conformance Desk
 
-The Conformance Desk autonomously clears ATS-issued private-credit fund units. A seller locks one
-exact trade in an Asset Tokenization Studio hold. A Privy-controlled buyer agent pays a Hedera x402
-endpoint for a live, standardized market-data check. A signed decision then makes
+The Conformance Desk lets a user create a tightly bounded AI-managed clearing vault. The user's
+Privy embedded wallet signs authority for one fund unit, one policy, a five-minute window, and a
+maximum `0.01 USDC` decision fee. A separate Privy-controlled buyer agent pays a Hedera x402
+endpoint for a live standardized market-data check. A signed decision then makes
 `ClearingEscrow` execute or release that hold, then attempts to anchor the final digest to Hedera
 Consensus Service.
 
@@ -19,8 +20,9 @@ have all been confirmed.
 - Source: [public GitHub repository](https://github.com/AceVikings/ethglobal-online-2027)
 
 The dashboard is a Render Static Site. Its browser requests go to the scale-to-zero Cloud Run API.
-The API reads only a sanitized, chain-confirmed caretaker state file from a read-only Cloud Storage
-mount. Deployment from `main` uses GitHub OIDC and Workload Identity Federation, not a stored GCP
+Public reads expose only sanitized, chain-confirmed caretaker state. The authenticated live endpoint
+writes isolated run artifacts to Cloud Storage and publishes a run only after independent replay
+passes. Deployment from `main` uses GitHub OIDC and Workload Identity Federation, not a stored GCP
 service-account key. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Why this exists
@@ -35,6 +37,9 @@ on-chain action that cannot be redirected to another trade.
 ```mermaid
 sequenceDiagram
     autonumber
+    actor User
+    participant Web as Render vault UI
+    participant Privy as Privy user wallet
     participant Seller
     participant ATS as Hedera ATS security
     participant Buyer as Privy buyer agent
@@ -44,7 +49,12 @@ sequenceDiagram
     participant Escrow as ClearingEscrow
     participant HCS as Hedera Consensus Service
 
-    Seller->>ATS: Lock exact fund units in a hold
+    User->>Web: Sign in and choose the bounded 1.0 SPCF mandate
+    Web->>Privy: Sign exact mandate, expiry, policy, and spend ceiling
+    Privy-->>Web: Wallet signature plus authenticated session
+    Web->>API: Stream a live clearance with bearer token and signed mandate
+    API->>API: Verify Privy session, wallet signature, limits, cooldown, and quota
+    Seller->>ATS: Issue and lock exact fund units in a hold
     Buyer->>API: Request a decision for that hold
     API-->>Buyer: HTTP 402 with Hedera USDC terms
     Buyer->>Buyer: Enforce payee, token, fee payer, and spend cap
@@ -66,7 +76,8 @@ sequenceDiagram
     Buyer-->>HCS: Anchor final decision digest
 ```
 
-The seller and buyer are separate processes with separate credentials. The seller never exposes its
+The user mandate wallet, seller, and buyer agent are separate authorities with separate credentials.
+The user wallet authorizes the job but does not hold server keys or pay Hedera gas. The seller never exposes its
 Graph key or raw provider rows. The buyer receives no issuer role and cannot change the asset,
 parties, amount, hold, policy, or action after the verdict is signed. DeepSeek is optional
 presentation: it can explain the fixed result, but it cannot decide, sign, pay, or settle.
@@ -125,10 +136,10 @@ execution for an exact off-exchange transfer.
 
 | Requirement | Implementation | Status | Code |
 | --- | --- | --- | --- |
-| Privy is core and at least one wallet is used | The buyer is a Privy Ethereum server wallet paired to a Hedera ECDSA account; its payment key is never exported into the app. | **Complete; live raw-sign validated** | [wallet client][loc-privy-client] |
-| Functional flow using a generally available feature | Privy's wallet RPC signs each Hedera transaction-body hash used by the x402 USDC transfer. | **Complete:** funded payment settled from the Privy-controlled account | [Hedera signer][loc-privy-signer], [caretaker selection][loc-caretaker-pay] |
-| Working demo and source | The public caretaker performs payment, decision, ATS settlement, and audit anchoring; the live dashboard presents its confirmed result. | **Implementation complete;** recording is a submission artifact | [end-to-end caretaker][loc-caretaker-finality], [guided dashboard][loc-guided-flow] |
-| Explain Privy's UX improvement | The agent pays from a managed wallet without exposing the Privy payment key, while local limits remain enforced. | **Complete** | [bounded policy][loc-x402-buyer] |
+| Privy is core and at least one wallet is used | Every user signs in through Privy and receives an embedded Hedera-compatible EVM wallet. A separate Privy server wallet is paired to the Hedera buyer account. | **Complete** | [React provider][loc-privy-react], [wallet client][loc-privy-client] |
+| Functional flow using generally available features | The browser wallet signs the exact five-minute clearing mandate and sends its Privy access token; the API verifies both before any work starts. The server wallet then signs the x402 Hedera payment. | **Complete** | [user signature][loc-privy-mandate-ui], [server verification][loc-live-server], [Hedera signer][loc-privy-signer] |
+| Working demo and source | The live vault streams ATS issuance, hold, paid Graph verdict, escrow finality, and replay back to the authenticated user. | **Complete in product** | [live runner][loc-live-runner], [execution feed][loc-live-console] |
+| Explain Privy's UX improvement | A user gets a recoverable login and explicit signing prompt without installing a wallet, while the autonomous agent pays without exporting its key. The UI makes those two authorities visibly distinct. | **Complete** | [account UI][loc-privy-account], [bounded buyer][loc-x402-buyer] |
 
 ## Live testnet resources
 
@@ -161,7 +172,9 @@ Fill `.env` locally; never commit it. Required live values are documented in `.e
 preferred buyer uses `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_WALLET_ID`, and
 `PRIVY_HEDERA_ACCOUNT_ID`. DeepSeek credentials are optional and only enable an explanation.
 
-Start the API and visual dashboard in separate shells:
+Put the public browser identifier in `packages/web/.env.local` as
+`VITE_PRIVY_APP_ID=...` (never put `PRIVY_APP_SECRET` in a Vite variable), then start the API and
+visual dashboard in separate shells:
 
 ```bash
 npm run start:service
@@ -185,10 +198,10 @@ node --env-file=.env --experimental-strip-types scripts/run-caretaker.cjs --exec
 node --env-file=.env scripts/replay.cjs --execute
 ```
 
-The dashboard at `http://127.0.0.1:5173` polls the local seller API and guides the viewer through the
-real ATS hold, Privy-backed payment, Graph evidence pins, signed policy, balance-changing settlement,
-HCS anchor, and 11-check replay. Before settlement it intentionally displays “No held trades”; it
-never inserts a fixture to manufacture demo state.
+The dashboard at `http://127.0.0.1:5173` can run that path directly: sign in with Privy, review the
+fixed mandate, approve its wallet signature, and watch all seven server stages stream to the browser.
+The final proof room is published only after the 11-check replay succeeds. Before settlement it
+intentionally displays “No held trades”; it never inserts a fixture to manufacture demo state.
 
 Follow [`docs/E2E.md`](docs/E2E.md) for the evidence checklist, recovery rules, and negative tests.
 
@@ -208,12 +221,12 @@ Follow [`docs/E2E.md`](docs/E2E.md) for the evidence checklist, recovery rules, 
 | --- | --- |
 | `packages/signal` | Checks, Graph catalog/client, canonical JSON, signatures, and HCS digest |
 | `packages/evaluator` | Live six-deployment Graph Gateway + Subgraph MCP evaluator |
-| `packages/service` | Health/read endpoints and x402-protected signed verdict endpoint |
+| `packages/service` | Public reads/verifier, authenticated live runner, and x402-protected signed verdict endpoint |
 | `packages/agent` | Bounded buyer, authorization verification, finality, and HCS anchoring |
 | `packages/privy-hedera-poc` | Privy wallet client and Hedera x402 signer adapter |
 | `packages/cli` | Signature-verifying paid consumer |
 | `packages/mcp-server` | Reusable `get_conformance_verdict` MCP tool |
-| `packages/web` | Animated, read-only presentation of durable clearing state |
+| `packages/web` | Privy login, signed mandate, animated live execution feed, and public proof rooms |
 | `contracts` | `ClearingEscrow`, which executes or releases exact ATS holds |
 | `scripts` | Dry-run-first issuance, lifecycle, deployment, sweep, replay, and verification |
 
@@ -265,3 +278,9 @@ Primary references: [Hedera ATS](https://docs.hedera.com/solutions/tokenization/
 [loc-privy-signer]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/privy-hedera-poc/src/adapter.ts#L81-L140
 [loc-guided-flow]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/web/src/components/ClearingFlow.tsx#L76-L240
 [loc-public-proof]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/service/src/trades.ts#L50-L151
+[loc-privy-react]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/web/src/auth/PrivyAuth.tsx#L1-L94
+[loc-privy-account]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/web/src/components/AccountButton.tsx#L1-L119
+[loc-privy-mandate-ui]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/web/src/components/LiveClearanceConsole.tsx#L29-L73
+[loc-live-console]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/web/src/components/LiveClearanceConsole.tsx#L76-L179
+[loc-live-server]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/service/src/server.ts#L184-L235
+[loc-live-runner]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/service/src/live-clearance.ts#L112-L190
