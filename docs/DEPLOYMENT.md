@@ -13,7 +13,8 @@ remaining application routes to `index.html`. The browser therefore uses a same-
 and does not need a public build-time environment variable. A manually configured Static Site may
 instead set `VITE_API_BASE_URL` to the public Cloud Run URL; this value is not a secret. Production
 builds also default to the deployed Cloud Run API when the variable is absent, while Vite development
-continues to use its local `/api` proxy.
+continues to use its local `/api` proxy. The dashboard uses hash routing so deep links also work when
+a manually configured static service has no SPA rewrite.
 
 Production dashboard: <https://ethglobal-online-2027.onrender.com>
 
