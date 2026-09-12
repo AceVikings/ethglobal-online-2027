@@ -1,7 +1,5 @@
 'use strict'
 
-const path = require('node:path')
-const fs = require('node:fs')
 const agent = require('../../packages/agent/src/index.cjs')
 
 function executeRequested(argv = process.argv.slice(2)) {
@@ -12,18 +10,15 @@ function executeRequested(argv = process.argv.slice(2)) {
 
 function output(value) { process.stdout.write(`${JSON.stringify(value, null, 2)}\n`) }
 
-function loadJson(file) {
-  const absolute = path.resolve(process.cwd(), file)
-  return JSON.parse(fs.readFileSync(absolute, 'utf8'))
-}
-
 async function run(main) {
   try { await main() } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`)
+    const state = error.details || error.operation
+    if (state) process.stderr.write(`${JSON.stringify({ state }, null, 2)}\n`)
     process.exitCode = 1
   }
 }
 
 function txId(result) { return result?.transactionId || result?.payload?.transactionId || null }
 
-module.exports = { ...agent, executeRequested, output, loadJson, run, txId }
+module.exports = { ...agent, executeRequested, output, run, txId }
