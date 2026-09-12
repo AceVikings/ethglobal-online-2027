@@ -92,9 +92,13 @@ export function createVerdictServer(options: ServiceOptions) {
         signer: wallet.address,
       }
       const signed: SignedVerdict = signVerdict(payload, options.signingKey)
+      const settlement = authorization.settle ? await authorization.settle() : undefined
       send(response, 200, signed, {
         ...(authorization.responseHeaders ?? {}),
-        ...(authorization.paymentRef ? { 'x-payment-ref': authorization.paymentRef } : {}),
+        ...(settlement?.responseHeaders ?? {}),
+        ...((settlement?.paymentRef ?? authorization.paymentRef)
+          ? { 'x-payment-ref': settlement?.paymentRef ?? authorization.paymentRef! }
+          : {}),
       })
     } catch (error) {
       // Do not leak provider responses, credentials, stack traces, or raw Graph rows.

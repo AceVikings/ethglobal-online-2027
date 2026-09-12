@@ -26,6 +26,8 @@ export interface PaymentAuthorization {
   headers?: Record<string, string>
   responseHeaders?: Record<string, string>
   publicMessage?: string
+  /** Settle only after the protected handler has produced a successful result. */
+  settle?: () => Promise<{ paymentRef: string; responseHeaders: Record<string, string> }>
 }
 
 /** Adapter boundary for @x402/core + ExactHederaScheme or another facilitator. */
