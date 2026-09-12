@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter Variable", sans-serif;
+  --font-display: "Instrument Serif", serif;
+  --font-mono: "Geist Mono Variable", monospace;
+  --color-canvas: #f6f4ef;
+  --color-surface: #ffffff;
+  --color-chip: #e8ebef;
+  --color-primary-copy: #0f172a;
+  --color-secondary-copy: hsl(215 25% 32%);
+  --color-muted-copy: #64748b;
+  --color-button-copy: #ffffff;
+  --color-action: #000000;
+  --color-active: #0f172a;
+  --color-success: #26734d;
+  --color-refusal: #ff5c5c;
+  --color-hairline: rgba(15, 23, 42, 0.16);
+  --color-timeline: rgba(15, 23, 42, 0.2);
+}
+
+:root {
+  color: var(--color-primary-copy);
+  background: var(--color-canvas);
+  font-family: var(--font-sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--color-canvas);
+}
+
+button {
+  cursor: pointer;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  color: var(--color-muted-copy);
+}
+
+.hero-cinematic {
+  background: hsl(201 100% 13%);
+}
+
+.hero-overlay {
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0) 56%);
+}
+
+.fade-rise {
+  animation: fade-rise 0.8s ease-out both;
+  animation-delay: var(--entrance-delay, 0ms);
+}
+
+.pill-action {
+  border-radius: 9999px;
+  transition: transform 200ms ease-in-out;
+}
+
+.pill-action:hover {
+  transform: scale(1.03);
+}
+
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+::selection {
+  color: var(--color-button-copy);
+  background: var(--color-active);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
