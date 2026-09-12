@@ -139,7 +139,8 @@ Offline validation currently covers signal calculation/signatures, seller paymen
 verification, caretaker refusal/compensation, script dry runs, and Solidity signature/replay guards.
 It does **not** prove a live Graph query, Blocky402 settlement, ATS issuance, HCS message, HTS token,
 scheduled transaction, contract deployment, Sourcify verification, or HashScan result. Those require
-the testnet credentials and IDs in `.env`.
+the testnet credentials and IDs in `.env`. Follow the evidence-driven [end-to-end test
+plan](docs/E2E.md) before making any live-system claim.
 
 Primary references: [Hedera ATS](https://docs.hedera.com/solutions/tokenization/ats),
 [Hedera x402](https://docs.hedera.com/solutions/ai/x402),
