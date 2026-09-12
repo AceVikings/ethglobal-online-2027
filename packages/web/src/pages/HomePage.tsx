@@ -27,6 +27,7 @@ export function HomePage() {
         <video
           className="absolute inset-0 h-full w-full object-cover"
           src="/conformance-hero-loop.mp4"
+          poster="/conformance-hero-still.webp"
           autoPlay
           muted
           loop

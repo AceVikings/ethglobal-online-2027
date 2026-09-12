@@ -22,6 +22,7 @@ describe("HomePage", () => {
       "src",
       "/conformance-hero-loop.mp4",
     );
+    expect(video).toHaveAttribute("poster", "/conformance-hero-still.webp");
     expect(video).toHaveAttribute("preload", "metadata");
   });
 
