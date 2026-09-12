@@ -70,10 +70,11 @@ button {
 .hero-motion-layer {
   z-index: 1;
   opacity: 0;
+  mix-blend-mode: multiply;
   will-change: opacity;
   animation: hero-media-dissolve 12s ease-in-out infinite;
-  -webkit-mask-image: radial-gradient(circle at 50% 58%, transparent 0 31%, #000000 58%);
-  mask-image: radial-gradient(circle at 50% 58%, transparent 0 31%, #000000 58%);
+  -webkit-mask-image: linear-gradient(to right, #000000 0 24%, transparent 40% 60%, #000000 76% 100%);
+  mask-image: linear-gradient(to right, #000000 0 24%, transparent 40% 60%, #000000 76% 100%);
 }
 
 .hero-content {
@@ -113,11 +114,11 @@ button {
   }
 
   36%, 70% {
-    opacity: 0.62;
+    opacity: 0.2;
   }
 
   90% {
-    opacity: 0.08;
+    opacity: 0.04;
   }
 }
 
