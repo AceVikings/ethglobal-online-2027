@@ -37,6 +37,17 @@ signed payment payloads in screenshots or committed logs.
 The Privy payer needs HBAR for account operation and Circle testnet USDC `0.0.429274` for the paid
 request. Use only free faucets. Stop if any provider asks for a card, deposit, or mainnet asset.
 
+Before using the Circle faucet, explicitly associate the canonical USDC token with the Privy-backed
+Hedera account. The association is signed remotely by Privy; no buyer private key is exported:
+
+```bash
+node --env-file=.env --experimental-strip-types scripts/associate-privy-usdc.cjs
+node --env-file=.env --experimental-strip-types scripts/associate-privy-usdc.cjs --execute
+```
+
+Only after `alreadyAssociated` is true should the Circle faucet send USDC to
+`PRIVY_HEDERA_ACCOUNT_ID`.
+
 ## 1. Prepare an isolated run
 
 From the repository root:

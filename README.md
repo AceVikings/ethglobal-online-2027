@@ -153,6 +153,7 @@ npm run dev --workspace @desk/web
 Every mutation is dry-run-first. Inspect the JSON before adding `--execute`:
 
 ```bash
+node --env-file=.env --experimental-strip-types scripts/associate-privy-usdc.cjs
 node --env-file=.env scripts/issue-equity.cjs
 node --env-file=.env scripts/seed-equity.cjs
 node --env-file=.env scripts/create-hold.cjs
