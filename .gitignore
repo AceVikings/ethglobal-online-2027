@@ -7,3 +7,5 @@ cache/
 broadcast/
 *.log
 .DS_Store
+.playwright-cli/
+output/playwright/

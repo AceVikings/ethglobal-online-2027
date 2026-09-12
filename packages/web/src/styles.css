@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter Variable", sans-serif;
+  --font-mono: "Geist Mono Variable", monospace;
+  --color-canvas: #000000;
+  --color-surface: #0a0a0a;
+  --color-chip: #1f1f1f;
+  --color-primary-copy: #ededed;
+  --color-secondary-copy: #c2c2c2;
+  --color-muted-copy: #999999;
+  --color-button-copy: #121212;
+  --color-active: #52a8ff;
+  --color-success: #62c073;
+  --color-refusal: #ff5c5c;
+  --color-hairline: rgba(255, 255, 255, 0.145);
+  --color-timeline: rgba(255, 255, 255, 0.18);
+}
+
+:root {
+  color: var(--color-primary-copy);
+  background: var(--color-canvas);
+  font-family: var(--font-sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--color-canvas);
+}
+
+button,
+a {
+  border-radius: 0;
+}
+
+button {
+  cursor: pointer;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  color: var(--color-muted-copy);
+}
+
+.hero-grid {
+  background-image:
+    linear-gradient(to top, rgba(0, 0, 0, 0.76) 0%, rgba(0, 0, 0, 0) 93.785%),
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: auto, 72px 72px, 72px 72px;
+}
+
+.hero-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 78% 35%, rgba(82, 168, 255, 0.22), transparent 28%),
+    radial-gradient(circle at 18% 70%, rgba(98, 192, 115, 0.08), transparent 25%);
+}
+
+::selection {
+  color: var(--color-button-copy);
+  background: var(--color-active);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
