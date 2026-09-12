@@ -1,0 +1,10 @@
+title = "Conformance Desk secret scanning"
+minVersion = "v8.25.0"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public Hardhat test key removed from the current tree but retained in private history"
+targetRules = ["generic-api-key"]
+commits = ["f5707c2c3650369a93409aa1b9f5529f1def16c3"]

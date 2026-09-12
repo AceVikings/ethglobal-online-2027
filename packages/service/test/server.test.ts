@@ -85,6 +85,41 @@ test('public trade routes are empty rather than mocked when no read model is con
   assert.equal(missing.status, 404)
 })
 
+test('allows only the exact configured frontend origin to read the public API', async () => {
+  assert.throws(() => createVerdictServer({
+    signingKey: key, paymentGate: { async authorize() { return { ok: false } } },
+    async evaluator() { throw new Error('unused') }, corsAllowedOrigin: 'https://example.com/path',
+  }), /exact HTTP\(S\) origin/)
+
+  const cors = createVerdictServer({
+    signingKey: key,
+    paymentGate: { async authorize() { return { ok: false } } },
+    async evaluator() { throw new Error('unused') },
+    corsAllowedOrigin: 'https://desk.example',
+  })
+  await new Promise<void>((resolve) => cors.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = cors.address()
+    if (!address || typeof address === 'string') throw new Error('missing listen address')
+    const url = `http://127.0.0.1:${address.port}/api/v1/trades`
+    const allowed = await fetch(url, { headers: { origin: 'https://desk.example' } })
+    assert.equal(allowed.headers.get('access-control-allow-origin'), 'https://desk.example')
+    assert.equal(allowed.headers.get('vary'), 'Origin')
+
+    const denied = await fetch(url, { headers: { origin: 'https://attacker.example' } })
+    assert.equal(denied.headers.get('access-control-allow-origin'), null)
+
+    const preflight = await fetch(url, {
+      method: 'OPTIONS',
+      headers: { origin: 'https://desk.example', 'access-control-request-method': 'GET' },
+    })
+    assert.equal(preflight.status, 204)
+    assert.equal(preflight.headers.get('access-control-allow-methods'), 'GET')
+  } finally {
+    cors.close()
+  }
+})
+
 test('verdict is payment gated', async () => {
   const response = await fetch(`${base}/verdict`, { method: 'POST', body: JSON.stringify(body) })
   assert.equal(response.status, 402)

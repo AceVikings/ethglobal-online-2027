@@ -1,5 +1,9 @@
 {
   "name": "conformance-desk",
+  "description": "AI-managed atomic clearing for tokenized assets on Hedera",
+  "license": "MIT",
+  "repository": "https://github.com/AceVikings/ethglobal-online-2027",
+  "homepage": "https://github.com/AceVikings/ethglobal-online-2027#readme",
   "private": true,
   "type": "module",
   "engines": { "node": ">=22" },

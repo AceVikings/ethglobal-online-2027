@@ -15,3 +15,7 @@ broadcast/
 .DS_Store
 .playwright-cli/
 output/playwright/
+.tokensave/
+.superstack/
+coverage/
+gha-creds-*.json

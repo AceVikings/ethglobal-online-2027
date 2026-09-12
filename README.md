@@ -233,20 +233,20 @@ Primary references: [Hedera ATS](https://docs.hedera.com/solutions/tokenization/
 [The Graph Subgraph MCP](https://thegraph.com/docs/en/ai-suite/subgraph-mcp/introduction/), and
 [Privy wallets](https://docs.privy.io/wallets/overview).
 
-[loc-x402-server]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/packages/service/src/adapters/x402-hedera.ts#L29-L108
-[loc-x402-buyer]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/packages/agent/src/x402-buyer.cjs#L3-L28
-[loc-caretaker-pay]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/scripts/run-caretaker.cjs#L118-L151
-[loc-caretaker-finality]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/scripts/run-caretaker.cjs#L155-L199
-[loc-ats-issue]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/scripts/issue-equity.cjs#L13-L53
-[loc-ats-hold]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/scripts/create-hold.cjs#L18-L88
-[loc-escrow]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/contracts/src/ClearingEscrow.sol#L64-L169
-[loc-graph-catalog]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/packages/signal/src/deployments.ts#L25-L107
-[loc-graph-evaluator]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/packages/evaluator/src/index.ts#L150-L193
-[loc-graph-decision]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/packages/signal/src/checks.ts#L130-L178
-[loc-graph-mcp]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/packages/signal/src/mcp.ts#L33-L128
-[loc-desk-mcp]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/packages/mcp-server/src/server.ts#L53-L114
-[loc-service-boundary]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/packages/service/src/server.ts#L77-L127
-[loc-privy-client]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/packages/privy-hedera-poc/src/client.ts#L49-L145
-[loc-privy-signer]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/packages/privy-hedera-poc/src/adapter.ts#L81-L140
+[loc-x402-server]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/service/src/adapters/x402-hedera.ts#L29-L108
+[loc-x402-buyer]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/agent/src/x402-buyer.cjs#L3-L28
+[loc-caretaker-pay]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/scripts/run-caretaker.cjs#L118-L151
+[loc-caretaker-finality]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/scripts/run-caretaker.cjs#L155-L199
+[loc-ats-issue]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/scripts/issue-equity.cjs#L13-L53
+[loc-ats-hold]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/scripts/create-hold.cjs#L18-L88
+[loc-escrow]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/contracts/src/ClearingEscrow.sol#L64-L169
+[loc-graph-catalog]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/signal/src/deployments.ts#L25-L107
+[loc-graph-evaluator]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/evaluator/src/index.ts#L150-L193
+[loc-graph-decision]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/signal/src/checks.ts#L130-L178
+[loc-graph-mcp]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/signal/src/mcp.ts#L33-L128
+[loc-desk-mcp]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/mcp-server/src/server.ts#L53-L114
+[loc-service-boundary]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/service/src/server.ts#L77-L127
+[loc-privy-client]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/privy-hedera-poc/src/client.ts#L49-L145
+[loc-privy-signer]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/privy-hedera-poc/src/adapter.ts#L81-L140
 [loc-guided-flow]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/web/src/components/ClearingFlow.tsx#L76-L240
 [loc-public-proof]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/service/src/trades.ts#L50-L151
