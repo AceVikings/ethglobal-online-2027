@@ -17,12 +17,11 @@ describe("HomePage", () => {
     expect(screen.getByRole("heading", { name: "Proof before execution." })).toBeInTheDocument();
     expect(screen.getByText("Explore the decision desk")).toBeInTheDocument();
 
+    const heroImage = document.querySelector("img[src='/conformance-hero-still.webp']");
+    expect(heroImage).toBeInTheDocument();
+
     const video = document.querySelector("video");
-    expect(video).toHaveAttribute(
-      "src",
-      "/conformance-hero-loop.mp4",
-    );
-    expect(video).toHaveAttribute("poster", "/conformance-hero-still.webp");
+    expect(video).toHaveAttribute("src", "/conformance-hero-loop.mp4");
     expect(video).toHaveAttribute("preload", "metadata");
   });
 

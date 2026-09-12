@@ -24,10 +24,16 @@ export function HomePage() {
   return (
     <main>
       <section className="hero-cinematic relative flex min-h-[100svh] items-center justify-center overflow-hidden px-4 pb-16 pt-32 md:px-8 md:pt-28">
-        <video
+        <img
           className="absolute inset-0 h-full w-full object-cover"
+          src="/conformance-hero-still.webp"
+          alt=""
+          fetchPriority="high"
+          aria-hidden="true"
+        />
+        <video
+          className="absolute inset-0 h-full w-full object-cover opacity-[0.14] mix-blend-multiply"
           src="/conformance-hero-loop.mp4"
-          poster="/conformance-hero-still.webp"
           autoPlay
           muted
           loop
