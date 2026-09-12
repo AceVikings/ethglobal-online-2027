@@ -18,13 +18,14 @@ describe("HomePage", () => {
 
     expect(screen.getByRole("heading", { name: "Private-credit trades that clear only after proof." })).toBeInTheDocument();
     expect(screen.getByText("View clearing desk")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "One held trade. Two provable outcomes." })).toBeInTheDocument();
     expect(await screen.findByText("250 NPCF")).toBeInTheDocument();
     expect(screen.getByText("DeepSeek explains—not decides.")).toBeInTheDocument();
     expect(screen.getByText("180.0")).toBeInTheDocument();
 
-    const heroImage = document.querySelector("img[src='/conformance-hero-v2.webp']");
+    const heroImage = document.querySelector("img[src='/clearing-desk-hero-v3.webp']");
     expect(heroImage).toHaveAttribute("width", "1672");
-    expect(document.querySelector("video")).toHaveAttribute("poster", "/conformance-hero-v2.webp");
+    expect(document.querySelector("video")).not.toBeInTheDocument();
   });
 
   it("never substitutes fixtures when the backend is unavailable", async () => {

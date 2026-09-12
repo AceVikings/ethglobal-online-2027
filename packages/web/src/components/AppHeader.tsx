@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 
 const navItems = [
   { label: "Overview", href: "/" },
+  { label: "Flow", href: "/#flow" },
   { label: "Trades", href: "/#desk" },
   { label: "Activity", href: "/#activity" },
   { label: "Proof", href: "/#proof" },
@@ -34,7 +35,7 @@ export function AppHeader() {
           Clearing<sup className="ml-1 self-start font-sans text-[9px] font-medium leading-none">AI</sup>
         </Link>
 
-        <nav className="hidden items-center justify-center gap-10 md:flex" aria-label="Primary navigation">
+        <nav className="hidden items-center justify-center gap-8 md:flex" aria-label="Primary navigation">
           {navItems.map((item) => (
             <a
               key={item.label}

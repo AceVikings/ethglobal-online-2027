@@ -64,22 +64,13 @@ button {
 
 .hero-still-layer {
   z-index: 0;
+  height: 140%;
   opacity: 1;
-}
-
-.hero-motion-layer {
-  z-index: 1;
-  opacity: 0;
-  mix-blend-mode: multiply;
-  will-change: opacity;
-  animation: hero-media-dissolve 12s ease-in-out infinite;
-  -webkit-mask-image: linear-gradient(to right, #000000 0 24%, transparent 40% 60%, #000000 76% 100%);
-  mask-image: linear-gradient(to right, #000000 0 24%, transparent 40% 60%, #000000 76% 100%);
 }
 
 .hero-content {
   z-index: 10;
-  transform: translateY(clamp(-11rem, -14vh, -8rem));
+  transform: translateY(clamp(-14rem, -18vh, -11rem));
 }
 
 .fade-rise {
@@ -108,20 +99,6 @@ button {
   }
 }
 
-@keyframes hero-media-dissolve {
-  0%, 10%, 100% {
-    opacity: 0;
-  }
-
-  36%, 70% {
-    opacity: 0.2;
-  }
-
-  90% {
-    opacity: 0.04;
-  }
-}
-
 ::selection {
   color: var(--color-button-copy);
   background: var(--color-active);
@@ -140,13 +117,10 @@ button {
     transition-duration: 0.01ms !important;
   }
 
-  .hero-motion-layer {
-    display: none;
-  }
 }
 
 @media (max-width: 767px) {
   .hero-content {
-    transform: translateY(-8.5rem);
+    transform: translateY(-10rem);
   }
 }
