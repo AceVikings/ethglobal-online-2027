@@ -1,4 +1,6 @@
-# The Conformance Desk
+![Clearing AI cover](docs/assets/clearing-ai-cover.png)
+
+# Clearing AI — The Conformance Desk
 
 The Conformance Desk autonomously clears ATS-issued private-credit fund units. A seller locks one
 exact trade in an Asset Tokenization Studio hold. A Privy-controlled buyer agent pays a Hedera x402

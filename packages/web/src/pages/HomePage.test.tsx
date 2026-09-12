@@ -22,6 +22,7 @@ describe("HomePage", () => {
     expect(await screen.findByText("250 NPCF")).toBeInTheDocument();
     expect(screen.getByText("DeepSeek explains—not decides.")).toBeInTheDocument();
     expect(screen.getByText("180.0")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View clearing desk" })).toHaveAttribute("href", "/?section=desk");
 
     const heroImage = document.querySelector("img[src='/clearing-desk-hero-v3.webp']");
     expect(heroImage).toHaveAttribute("width", "1672");
