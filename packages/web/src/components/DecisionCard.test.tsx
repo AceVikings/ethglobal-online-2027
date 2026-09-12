@@ -1,57 +1,27 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
+import { tradeFixture } from "../test/tradeFixture";
 import { DecisionCard } from "./DecisionCard";
-import type { Decision } from "../data/decisions";
 
-const baseDecision: Decision = {
-  id: "decision-001",
-  sequence: "CD-2409-001",
-  protocol: "Aave v3",
-  network: "Base",
-  verdict: "CONFORMANT",
-  operation: "CONTROL LIST RELEASED",
-  issuedAt: "14:42:06",
-  durationMs: 1842,
-  payment: "0.05 USDC",
-  transactionId: "0.0.7162784@1789252926.442",
-  signalHash: "0x10b9a8f2d44c97",
-  checksPassed: 5,
-  checksTotal: 5,
-  spans: [],
-};
-
-function renderCard(decision: Decision) {
-  return render(
-    <MemoryRouter>
-      <DecisionCard decision={decision} />
-    </MemoryRouter>,
-  );
-}
+afterEach(cleanup);
 
 describe("DecisionCard", () => {
-  it("renders conformant and refused outcomes with the same structural weight", () => {
-    const success = renderCard(baseDecision);
-    const successArticle = screen.getByRole("article");
-    expect(successArticle).toHaveAttribute("data-layout", "decision-card");
-    expect(screen.getByText("CONFORMANT")).toBeInTheDocument();
-    success.unmount();
+  it("shows the held instrument, counterparties, price, and lifecycle state", () => {
+    render(<MemoryRouter><DecisionCard trade={tradeFixture} /></MemoryRouter>);
 
-    renderCard({
-      ...baseDecision,
-      id: "decision-002",
-      verdict: "NON_CONFORMANT",
-      operation: "REFUSED — NO OPERATION SUBMITTED",
-      transactionId: null,
-      checksPassed: 4,
-    });
+    expect(screen.getByRole("article")).toHaveAttribute("data-layout", "trade-card");
+    expect(screen.getByText("Cleared")).toBeInTheDocument();
+    expect(screen.getByText(/Northstar Private Credit Fund/)).toBeInTheDocument();
+    expect(screen.getByText("250 NPCF")).toBeInTheDocument();
+    expect(screen.getByText("0.01 USDC")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /inspect trade/i })).toHaveAttribute("href", `/trades/${tradeFixture.tradeDigest}`);
+  });
 
-    expect(screen.getByRole("article")).toHaveAttribute(
-      "data-layout",
-      "decision-card",
-    );
-    expect(screen.getByText("NON-CONFORMANT")).toBeInTheDocument();
-    expect(screen.getByText("No Hedera transaction")).toBeInTheDocument();
+  it("does not style approval as final clearance", () => {
+    render(<MemoryRouter><DecisionCard trade={{ ...tradeFixture, state: "APPROVED", settlement: null }} /></MemoryRouter>);
+    expect(screen.getByText("Approved · awaiting execution")).toBeInTheDocument();
+    expect(screen.queryByText("Cleared")).not.toBeInTheDocument();
   });
 });
