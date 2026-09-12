@@ -73,6 +73,9 @@ run(async () => {
   const expectedSecurity = assertMatch(required(process.env, 'ATS_SECURITY_EVM_ADDRESS'), EVM_ADDRESS, 'ATS_SECURITY_EVM_ADDRESS')
   const expectedSigner = assertMatch(required(process.env, 'CONFORMANCE_EXPECTED_SIGNER'), EVM_ADDRESS, 'CONFORMANCE_EXPECTED_SIGNER')
   const expectedPolicy = assertMatch(required(process.env, 'POLICY_HASH'), BYTES32, 'POLICY_HASH')
+  const expectedTradeDigest = process.env.REPLAY_TRADE_DIGEST
+    ? assertMatch(process.env.REPLAY_TRADE_DIGEST, BYTES32, 'REPLAY_TRADE_DIGEST').toLowerCase()
+    : null
   const escrow = createClearingEscrowAdapter(provider, expectedEscrow)
   const settlementInterface = new Interface(CLEARING_ESCROW_ABI)
   const [trustedSigner, committedPolicy] = await Promise.all([escrow.signer(), escrow.policyHash()])
@@ -83,6 +86,7 @@ run(async () => {
     let message
     try { message = JSON.parse(Buffer.from(envelope.message, 'base64').toString('utf8')) } catch { continue }
     if (message.t !== 'CLEARING_DECISION' || message.v !== 2) continue
+    if (expectedTradeDigest && message.tradeDigest?.toLowerCase() !== expectedTradeDigest) continue
     if (message.escrow?.toLowerCase() !== expectedEscrow.toLowerCase()) throw new Error('HCS message references an untrusted escrow')
     if (message.security?.toLowerCase() !== expectedSecurity.toLowerCase()) throw new Error('HCS message references an unexpected ATS security')
     const [event, transaction, mirror] = await Promise.all([

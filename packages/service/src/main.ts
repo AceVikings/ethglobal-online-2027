@@ -1,7 +1,10 @@
+import { PrivyClient } from '@privy-io/node'
 import { createVerdictServer } from './server.ts'
 import { evaluatorFromEnv } from './evaluator.ts'
 import { paymentGateFromEnv } from './x402.ts'
 import { createFileTradeReadModel } from './trades.ts'
+import { createPublicTradeVerifier } from './verification.ts'
+import { createLiveClearanceRunner } from './live-clearance.ts'
 
 const signingKey = process.env.VERDICT_SIGNER_KEY
 if (!signingKey) throw new Error('VERDICT_SIGNER_KEY is required')
@@ -16,8 +19,25 @@ const trades = createFileTradeReadModel({
   instrumentSymbol: process.env.EQUITY_SYMBOL,
   instrumentDecimals: 6,
 })
+const tradeVerifier = createPublicTradeVerifier({
+  graphApiKey: process.env.GRAPH_STUDIO_KEY!,
+  graphGatewayUrl: process.env.GRAPH_GATEWAY_BASE,
+  mirrorNodeUrl: process.env.HEDERA_MIRROR_NODE,
+})
+const liveEnabled = process.env.LIVE_CLEARANCE_ENABLED === 'true'
+const privyAppId = process.env.PRIVY_APP_ID
+const privyAppSecret = process.env.PRIVY_APP_SECRET
+if (liveEnabled && (!privyAppId || !privyAppSecret)) {
+  throw new Error('PRIVY_APP_ID and PRIVY_APP_SECRET are required when live clearance is enabled')
+}
+const privy = liveEnabled ? new PrivyClient({ appId: privyAppId!, appSecret: privyAppSecret! }) : null
 const server = createVerdictServer({
-  evaluator, paymentGate, signingKey, trades,
+  evaluator, paymentGate, signingKey, trades, tradeVerifier,
+  liveClearance: liveEnabled ? createLiveClearanceRunner() : undefined,
+  verifyAccessToken: privy ? async (token) => {
+    const claim = await privy.utils().auth().verifyAccessToken(token)
+    return { userId: claim.user_id }
+  } : undefined,
   corsAllowedOrigin: process.env.CORS_ALLOWED_ORIGIN,
 })
 const port = Number(process.env.PORT ?? 4020)

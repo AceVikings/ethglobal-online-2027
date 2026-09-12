@@ -24,6 +24,7 @@ signed payment payloads in screenshots or committed logs.
 
 | Role | Required values | Preflight assertion |
 | --- | --- | --- |
+| User mandate | browser `VITE_PRIVY_APP_ID`; Privy login creates an embedded EVM wallet | User can sign the exact five-minute, one-unit mandate; no server key enters the browser |
 | Graph seller | `GRAPH_STUDIO_KEY` | Live Gateway query succeeds for every pinned deployment |
 | Verdict authority | `VERDICT_SIGNER_KEY`, `CONFORMANCE_EXPECTED_SIGNER`, `POLICY_HASH` | Key derives the expected signer; escrow reports that signer and policy |
 | x402 seller | `X402_PAY_TO`, `X402_*` settings | Payee is the intended Hedera seller and Blocky advertises the pinned fee payer |
@@ -121,6 +122,7 @@ CARETAKER_STATE_FILE="$CARETAKER_STATE_FILE" npm run start:service
 Terminal B:
 
 ```bash
+printf 'VITE_PRIVY_APP_ID=%s\n' "$PRIVY_APP_ID" > packages/web/.env.local
 npm run dev --workspace @conformance-desk/web
 ```
 
@@ -131,7 +133,14 @@ curl -fsS http://127.0.0.1:4020/api/v1/trades
 curl -fsS http://127.0.0.1:5173/api/v1/trades
 ```
 
-## 6. Execute exactly one paid clearing
+## 6. Execute exactly one paid clearing from the product
+
+Open `http://127.0.0.1:5173/#/?section=live`, sign in with Privy, inspect the six immutable mandate
+fields, and select **Sign mandate & clear 1.0 SPCF**. Approve Privy's signature prompt. The browser
+then sends the access token and signed mandate to `POST /api/v1/live-clearances`; the server verifies
+both and streams seven real stages. Wait for **Public replay passed**, then open the proof room.
+
+For operator recovery only, the same underlying checkpointed caretaker can be resumed in Terminal C:
 
 Terminal C, with the same exported run variables:
 
@@ -140,7 +149,7 @@ CARETAKER_STATE_FILE="$CARETAKER_STATE_FILE" \
   node --env-file=.env --experimental-strip-types scripts/run-caretaker.cjs --execute
 ```
 
-The command is checkpointed. If the process stops after payment or after contract submission, rerun
+The runner is checkpointed. If the process stops after payment or after contract submission, rerun
 the identical command with the same state file; it resumes instead of paying or settling twice.
 
 Require the final state to report:

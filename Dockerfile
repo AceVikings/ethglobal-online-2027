@@ -10,8 +10,15 @@ COPY --chown=node:node package.json package-lock.json ./
 COPY --chown=node:node packages/service ./packages/service
 COPY --chown=node:node packages/evaluator ./packages/evaluator
 COPY --chown=node:node packages/signal ./packages/signal
+COPY --chown=node:node packages/agent ./packages/agent
+COPY --chown=node:node packages/privy-hedera-poc ./packages/privy-hedera-poc
+COPY --chown=node:node scripts ./scripts
 
-RUN npm ci --omit=dev --ignore-scripts --workspace @desk/service --include-workspace-root=false \
+RUN npm ci --omit=dev --ignore-scripts \
+      --workspace @desk/service \
+      --workspace @desk/agent \
+      --workspace @desk/privy-hedera-poc \
+      --include-workspace-root=false \
     && npm cache clean --force
 
 USER node

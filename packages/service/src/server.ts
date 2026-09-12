@@ -14,6 +14,8 @@ import {
 import { parseVerdictRequest } from './policy.ts'
 import type { PaymentGate, VerdictEvaluator, VerdictRequest } from './types.ts'
 import type { TradeReadModel } from './trades.ts'
+import type { PublicTradeVerifier } from './verification.ts'
+import type { LiveClearanceRunner, SignedLiveMandate } from './live-clearance.ts'
 
 const MAX_BODY_BYTES = 16 * 1024
 
@@ -26,6 +28,9 @@ export interface ServiceOptions {
   nonce?: () => string
   authorizationTtlSeconds?: number
   trades?: TradeReadModel
+  tradeVerifier?: PublicTradeVerifier
+  liveClearance?: LiveClearanceRunner
+  verifyAccessToken?: (token: string) => Promise<{ userId: string }>
   corsAllowedOrigin?: string
 }
 
@@ -61,6 +66,11 @@ async function readJson(request: IncomingMessage): Promise<unknown> {
 
 function safeError(error: unknown): string {
   return error instanceof Error ? error.message : 'unknown error'
+}
+
+function bearerToken(request: IncomingMessage): string | null {
+  const match = /^Bearer\s+([^\s]+)$/i.exec(request.headers.authorization ?? '')
+  return match?.[1] ?? null
 }
 
 export function createVerdictServer(options: ServiceOptions) {
@@ -158,8 +168,8 @@ export function createVerdictServer(options: ServiceOptions) {
     if (request.method === 'OPTIONS' && url.pathname.startsWith('/api/') && allowedOrigin) {
       response.writeHead(204, {
         'access-control-allow-origin': allowedOrigin,
-        'access-control-allow-methods': 'GET',
-        'access-control-allow-headers': 'Accept',
+        'access-control-allow-methods': 'GET, POST',
+        'access-control-allow-headers': 'Accept, Authorization, Content-Type',
         'access-control-max-age': '86400',
         vary: 'Origin',
       })
@@ -172,6 +182,66 @@ export function createVerdictServer(options: ServiceOptions) {
     }
     if (request.method === 'GET' && url.pathname === '/api/v1/trades') {
       send(response, 200, options.trades ? await options.trades.list() : { trades: [], nextCursor: null })
+      return
+    }
+    if (request.method === 'POST' && url.pathname === '/api/v1/live-clearances') {
+      if (!options.liveClearance || !options.verifyAccessToken) {
+        send(response, 503, { error: 'live_clearance_unavailable' })
+        return
+      }
+      const token = bearerToken(request)
+      if (!token) {
+        send(response, 401, { error: 'authentication_required' })
+        return
+      }
+      let userId: string
+      try {
+        userId = (await options.verifyAccessToken(token)).userId
+        if (!userId) throw new Error('missing Privy user')
+      } catch {
+        send(response, 401, { error: 'invalid_session' })
+        return
+      }
+      let signed: SignedLiveMandate
+      try {
+        signed = await readJson(request) as SignedLiveMandate
+      } catch (error) {
+        send(response, 400, { error: 'invalid_request', message: safeError(error) })
+        return
+      }
+      response.writeHead(200, {
+        'content-type': 'application/x-ndjson; charset=utf-8',
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+      })
+      try {
+        const result = await options.liveClearance.run(userId, signed, async (stage) => {
+          response.write(`${JSON.stringify({ type: 'stage', stage })}\n`)
+        })
+        response.end(`${JSON.stringify({ type: 'complete', result })}\n`)
+      } catch {
+        response.end(`${JSON.stringify({ type: 'error', message: 'Live clearance stopped. Review the final stage for details.' })}\n`)
+      }
+      return
+    }
+    const verificationPath = url.pathname.match(/^\/api\/v1\/trades\/([^/]+)\/verify$/)
+    if (request.method === 'POST' && verificationPath) {
+      const digest = decodeURIComponent(verificationPath[1])
+      const trade = await options.trades?.get(digest)
+      if (!trade) {
+        send(response, 404, { error: 'trade_not_found' })
+        return
+      }
+      if (!options.tradeVerifier) {
+        send(response, 503, { error: 'verification_unavailable' })
+        return
+      }
+      try {
+        send(response, 200, await options.tradeVerifier.verify(trade))
+      } catch (error) {
+        console.error('public verification failed:', safeError(error))
+        send(response, 502, { error: 'verification_unavailable' })
+      }
       return
     }
     const tradePath = url.pathname.match(/^\/api\/v1\/trades\/([^/]+)(\/events)?$/)
