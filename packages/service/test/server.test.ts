@@ -66,3 +66,33 @@ test('paid response is derived and signed', async () => {
   assert.equal(verifyVerdict(result).ok, true)
   assert.equal('rows' in result, false)
 })
+
+test('settles only after evaluation and fails closed on settlement failure', async () => {
+  const events: string[] = []
+  const failing = createVerdictServer({
+    signingKey: key,
+    paymentGate: { async authorize() { return { ok: true, settle: async () => {
+      events.push('settle')
+      throw new Error('settlement rejected')
+    } } } },
+    async evaluator() {
+      events.push('evaluate')
+      return {
+        checks: { cidMatch: { pass: true }, indexingErrors: { pass: true }, freshness: { pass: true }, shapeAgreement: { pass: true }, invariants: { pass: true } },
+        verdict: 'CONFORMANT', evidence: { queryHash: `0x${'ab'.repeat(32)}`, queryText: '{}', block: 42 },
+      }
+    },
+  })
+  await new Promise<void>((resolve) => failing.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = failing.address()
+    if (!address || typeof address === 'string') throw new Error('missing listen address')
+    const response = await fetch(`http://127.0.0.1:${address.port}/verdict`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    })
+    assert.equal(response.status, 502)
+    assert.deepEqual(events, ['evaluate', 'settle'])
+  } finally {
+    failing.close()
+  }
+})

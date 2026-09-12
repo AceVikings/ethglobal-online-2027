@@ -8,6 +8,11 @@
     "start": "node --experimental-strip-types src/index.ts",
     "test": "node --experimental-strip-types --test test/*.test.ts"
   },
-  "dependencies": { "@desk/signal": "0.1.0" },
+  "dependencies": {
+    "@desk/signal": "0.1.0",
+    "@x402/core": "^2.25.0",
+    "@x402/fetch": "^2.25.0",
+    "@x402/hedera": "^2.25.0"
+  },
   "devDependencies": { "ethers": "^6.13.4" }
 }

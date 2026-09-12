@@ -9,16 +9,17 @@ export interface CheckInput {
 export type PaymentFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 interface PaymentClientModule {
-  createPaymentFetch(config: { baseFetch: typeof fetch }): PaymentFetch | Promise<PaymentFetch>
+  createPaymentFetch(config: { baseFetch: typeof fetch; env?: NodeJS.ProcessEnv }): PaymentFetch | Promise<PaymentFetch>
 }
 
 export async function paymentFetchFromEnv(env: NodeJS.ProcessEnv = process.env): Promise<PaymentFetch> {
-  if (!env.CONFORMANCE_PAYMENT_CLIENT_MODULE) return fetch
-  const module = (await import(env.CONFORMANCE_PAYMENT_CLIENT_MODULE)) as PaymentClientModule
+  const module = (env.CONFORMANCE_PAYMENT_CLIENT_MODULE
+    ? await import(env.CONFORMANCE_PAYMENT_CLIENT_MODULE)
+    : await import('./adapters/x402-hedera.ts')) as PaymentClientModule
   if (typeof module.createPaymentFetch !== 'function') {
     throw new Error('payment client module must export createPaymentFetch(config)')
   }
-  return module.createPaymentFetch({ baseFetch: fetch })
+  return module.createPaymentFetch({ baseFetch: fetch, env })
 }
 
 function looksSigned(value: unknown): value is SignedVerdict {
