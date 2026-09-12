@@ -121,7 +121,7 @@ CARETAKER_STATE_FILE="$CARETAKER_STATE_FILE" npm run start:service
 Terminal B:
 
 ```bash
-npm run dev --workspace @desk/web
+npm run dev --workspace @conformance-desk/web
 ```
 
 Before settlement these must return an empty real read model, never a fixture:
@@ -171,7 +171,8 @@ consumed ATS hold. Zero topic messages exits non-zero by design.
 
 ## 8. Verify the visual demo
 
-Open `http://127.0.0.1:5173` and verify:
+Open `http://127.0.0.1:5173` for the local flow or
+<https://ethglobal-online-2027.onrender.com> for the deployed flow and verify:
 
 - the completed trade appears without a refresh after API polling;
 - its guided trace shows the ATS creation, Privy payer and canonical USDC, six Graph deployments,
@@ -190,7 +191,7 @@ curl -fsS http://127.0.0.1:5173/api/v1/trades
 
 ## Final submission gates
 
-- Publish the repository only after choosing whether to preserve or squash historical internal docs.
+- Confirm the public repository and both production service URLs resolve.
 - Confirm the existing Sourcify creation/runtime exact match still resolves before recording.
 - Record a single uncut demo of the paid request, ATS execution, replay, and dashboard.
 - Link the payment, escrow event, ATS security, and HCS topic in the submission.
