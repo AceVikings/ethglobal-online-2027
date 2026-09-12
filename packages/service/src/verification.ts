@@ -128,7 +128,10 @@ export function createPublicTradeVerifier(options: PublicTradeVerifierOptions): 
       const deploymentId = trade.decision.evidence.deploymentId
       const evidenceBlock = trade.decision.evidence.block
       const graphUrl = `${graphGatewayUrl}/${encodeURIComponent(deploymentId)}`
-      const paymentUrl = `${mirrorNodeUrl}/api/v1/transactions/${encodeURIComponent(trade.payment.transactionId)}`
+      // Mirror Node's path endpoint accepts the canonical account-seconds-nanos form. x402
+      // facilitators may return the equivalent SDK form (account@seconds.nanos), so normalize the
+      // path as well as the response comparison.
+      const paymentUrl = `${mirrorNodeUrl}/api/v1/transactions/${encodeURIComponent(normalizedTransactionId(trade.payment.transactionId))}`
       const settlementUrl = `${mirrorNodeUrl}/api/v1/contracts/results/${encodeURIComponent(trade.settlement.transactionId)}`
       const auditUrl = `${mirrorNodeUrl}/api/v1/topics/${encodeURIComponent(trade.settlement.hcsTopicId)}/messages/${trade.settlement.hcsSequenceNumber}`
 
