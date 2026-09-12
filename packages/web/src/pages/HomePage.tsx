@@ -24,10 +24,16 @@ export function HomePage() {
   return (
     <main>
       <section className="hero-cinematic relative flex min-h-[100svh] items-center justify-center overflow-hidden px-4 pb-16 pt-32 md:px-8 md:pt-28">
+        <img
+          className="hero-still-layer absolute inset-0 h-full w-full object-cover"
+          src="/conformance-hero-still.webp"
+          alt=""
+          fetchPriority="high"
+          aria-hidden="true"
+        />
         <video
-          className="absolute inset-0 h-full w-full object-cover"
+          className="hero-motion-layer absolute inset-0 h-full w-full object-cover"
           src="/conformance-hero-loop.mp4"
-          poster="/conformance-hero-still.webp"
           autoPlay
           muted
           loop
@@ -37,7 +43,7 @@ export function HomePage() {
         />
         <div className="hero-overlay absolute inset-0" aria-hidden="true" />
         {/* Storyboard: landscape settles in, headline rises, supporting copy follows, then the primary action arrives. */}
-        <div className="relative mx-auto flex w-full max-w-7xl flex-col items-center text-center">
+        <div className="hero-content relative mx-auto flex w-full max-w-7xl flex-col items-center text-center">
           <h1
             className="fade-rise max-w-4xl font-display text-5xl font-normal leading-[0.95] tracking-[-2.46px] text-primary-copy md:text-[80px]"
             style={entranceDelay(TIMING.heading)}
