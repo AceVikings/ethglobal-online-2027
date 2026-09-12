@@ -1,0 +1,13 @@
+{
+  "name": "@desk/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": { "conformance-desk": "src/index.ts" },
+  "exports": { "./client": "./src/client.ts" },
+  "scripts": {
+    "start": "node --experimental-strip-types src/index.ts",
+    "test": "node --experimental-strip-types --test test/*.test.ts"
+  },
+  "dependencies": { "@desk/signal": "0.1.0" },
+  "devDependencies": { "ethers": "^6.13.4" }
+}
