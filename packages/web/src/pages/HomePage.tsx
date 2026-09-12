@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUpRight, Bot, Braces, CircleDollarSign, LockKeyhole, ScrollText } from "lucide-react";
 import { useEffect, useState, type CSSProperties } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { fetchTrades, type TradeListResponse } from "../api/trades";
 import { ClearingFlow } from "../components/ClearingFlow";
@@ -8,6 +9,7 @@ import { EventStream } from "../components/EventStream";
 
 const TIMING = { heading: "0ms", copy: "200ms", action: "400ms" } as const;
 const entranceDelay = (delay: string) => ({ "--entrance-delay": delay }) as CSSProperties;
+const sectionIds = new Set(["flow", "desk", "activity", "proof"]);
 
 type DeskState =
   | { status: "loading"; data: null }
@@ -31,8 +33,16 @@ const proofGridClasses = [
 ] as const;
 
 export function HomePage() {
+  const [searchParams] = useSearchParams();
+  const requestedSection = searchParams.get("section");
   const [reloadKey, setReloadKey] = useState(0);
   const [desk, setDesk] = useState<DeskState>({ status: "loading", data: null });
+
+  useEffect(() => {
+    if (!requestedSection || !sectionIds.has(requestedSection)) return;
+    const frame = window.requestAnimationFrame(() => document.getElementById(requestedSection)?.scrollIntoView());
+    return () => window.cancelAnimationFrame(frame);
+  }, [requestedSection]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -82,9 +92,9 @@ export function HomePage() {
           <p className="fade-rise mt-8 max-w-[670px] text-base leading-[1.625] text-secondary-copy md:text-lg" style={entranceDelay(TIMING.copy)}>
             A seller locks ATS fund units. A buyer agent pays for a live-data verdict. The clearing contract executes or releases that exact hold.
           </p>
-          <a href="#desk" className="fade-rise pill-action mt-8 inline-flex min-h-14 items-center gap-4 bg-action px-14 text-base font-medium text-white focus-visible:ring-2 focus-visible:ring-active focus-visible:ring-offset-2 focus-visible:ring-offset-canvas" style={entranceDelay(TIMING.action)}>
+          <Link to="/?section=desk" className="fade-rise pill-action mt-8 inline-flex min-h-14 items-center gap-4 bg-action px-14 text-base font-medium text-white focus-visible:ring-2 focus-visible:ring-active focus-visible:ring-offset-2 focus-visible:ring-offset-canvas" style={entranceDelay(TIMING.action)}>
             View clearing desk <ArrowDown className="h-4 w-4" aria-hidden="true" />
-          </a>
+          </Link>
         </div>
       </section>
 
@@ -133,7 +143,7 @@ export function HomePage() {
             )) : <div className="col-span-full bg-canvas p-6 font-mono text-xs text-muted-copy">Proof metrics appear only when returned by the clearing API.</div>}
           </div>
 
-          <a href="#desk" className="pill-action mt-10 inline-flex min-h-12 items-center gap-3 bg-action px-6 font-medium text-white focus-visible:ring-2 focus-visible:ring-active focus-visible:ring-offset-2 focus-visible:ring-offset-canvas">Inspect live trades <ArrowUpRight className="h-4 w-4" aria-hidden="true" /></a>
+          <Link to="/?section=desk" className="pill-action mt-10 inline-flex min-h-12 items-center gap-3 bg-action px-6 font-medium text-white focus-visible:ring-2 focus-visible:ring-active focus-visible:ring-offset-2 focus-visible:ring-offset-canvas">Inspect live trades <ArrowUpRight className="h-4 w-4" aria-hidden="true" /></Link>
         </div>
       </section>
     </main>

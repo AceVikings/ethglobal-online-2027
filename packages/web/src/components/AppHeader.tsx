@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 const navItems = [
-  { label: "Overview", href: "/" },
-  { label: "Flow", href: "/#flow" },
-  { label: "Trades", href: "/#desk" },
-  { label: "Activity", href: "/#activity" },
-  { label: "Proof", href: "/#proof" },
+  { label: "Overview", to: "/" },
+  { label: "Flow", to: "/?section=flow" },
+  { label: "Trades", to: "/?section=desk" },
+  { label: "Activity", to: "/?section=activity" },
+  { label: "Proof", to: "/?section=proof" },
 ];
 
 export function AppHeader() {
@@ -37,23 +37,23 @@ export function AppHeader() {
 
         <nav className="hidden items-center justify-center gap-8 md:flex" aria-label="Primary navigation">
           {navItems.map((item) => (
-            <a
+            <Link
               key={item.label}
-              href={item.href}
+              to={item.to}
               className="inline-flex min-h-10 items-center text-sm font-medium text-primary-copy transition-opacity duration-200 hover:opacity-60 focus-visible:ring-2 focus-visible:ring-active"
             >
               {item.label}
-            </a>
+            </Link>
           ))}
         </nav>
 
-        <a
-          href="/#desk"
+        <Link
+          to="/?section=desk"
           className="pill-action hidden min-h-10 items-center justify-self-end gap-2 bg-action px-6 text-sm font-medium text-white focus-visible:ring-2 focus-visible:ring-active focus-visible:ring-offset-2 focus-visible:ring-offset-canvas md:inline-flex"
         >
           View clearing desk
           <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </a>
+        </Link>
 
         <button
           type="button"
@@ -71,19 +71,20 @@ export function AppHeader() {
         <div id="mobile-navigation" className="fixed inset-0 -z-10 flex flex-col bg-canvas px-6 pb-8 pt-28 md:hidden">
           <nav className="flex flex-1 flex-col gap-2" aria-label="Mobile navigation">
             {navItems.map((item, index) => (
-              <a
+              <Link
                 key={item.label}
-                href={item.href}
+                to={item.to}
+                onClick={() => setOpen(false)}
                 className="flex min-h-16 items-center justify-between border-b border-hairline text-2xl text-primary-copy focus-visible:ring-2 focus-visible:ring-active"
               >
                 {item.label}
                 <span className="font-mono text-xs text-muted-copy">0{index + 1}</span>
-              </a>
+              </Link>
             ))}
           </nav>
-          <a href="/#desk" className="pill-action inline-flex min-h-12 items-center justify-between bg-action px-6 font-medium text-white focus-visible:ring-2 focus-visible:ring-active">
+          <Link to="/?section=desk" onClick={() => setOpen(false)} className="pill-action inline-flex min-h-12 items-center justify-between bg-action px-6 font-medium text-white focus-visible:ring-2 focus-visible:ring-active">
             View clearing desk <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-          </a>
+          </Link>
         </div>
       ) : null}
     </header>
