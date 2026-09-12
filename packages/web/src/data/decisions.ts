@@ -12,9 +12,8 @@ type Check = {
 
 type Span = {
   label: string;
-  startPercent: number;
-  widthPercent: number;
-  duration: string;
+  startMs: number;
+  durationMs: number;
   active?: boolean;
 };
 
@@ -34,21 +33,8 @@ export type Decision = {
   checksTotal: number;
   policy?: string;
   checks?: Check[];
-  spans?: Span[];
+  spans: Span[];
 };
-
-export const defaultSpans: Span[] = [
-  { label: "x402.verify", startPercent: 0, widthPercent: 18, duration: "331 ms" },
-  { label: "graph.gateway", startPercent: 20, widthPercent: 28, duration: "516 ms" },
-  { label: "signal.check", startPercent: 60, widthPercent: 13, duration: "240 ms", active: true },
-  { label: "hedera.anchor", startPercent: 75, widthPercent: 25, duration: "462 ms" },
-];
-
-const detailedSpans: Span[] = [
-  ...defaultSpans.slice(0, 2),
-  { label: "mcp.schema", startPercent: 36, widthPercent: 22, duration: "409 ms" },
-  ...defaultSpans.slice(2),
-];
 
 export const decisions: Decision[] = [
   {
@@ -73,7 +59,13 @@ export const decisions: Decision[] = [
       { label: "Shape agreement", result: "PASS", value: "11 fields · 0 mismatch" },
       { label: "Invariants", result: "PASS", value: "4 checked" },
     ],
-    spans: detailedSpans,
+    spans: [
+      { label: "x402.verify", startMs: 0, durationMs: 331 },
+      { label: "graph.gateway", startMs: 368, durationMs: 516 },
+      { label: "mcp.schema", startMs: 663, durationMs: 409 },
+      { label: "signal.check", startMs: 1105, durationMs: 240, active: true },
+      { label: "hcs.anchor", startMs: 1380, durationMs: 462 },
+    ],
   },
   {
     id: "decision-002",
@@ -97,9 +89,13 @@ export const decisions: Decision[] = [
       { label: "Shape agreement", result: "PASS", value: "11 fields · 0 mismatch" },
       { label: "Invariants", result: "PASS", value: "4 checked" },
     ],
-    spans: detailedSpans.map((span) =>
-      span.label === "signal.check" ? { ...span, widthPercent: 18 } : span,
-    ),
+    spans: [
+      { label: "x402.verify", startMs: 0, durationMs: 331 },
+      { label: "graph.gateway", startMs: 330, durationMs: 516 },
+      { label: "mcp.schema", startMs: 594, durationMs: 409 },
+      { label: "signal.check", startMs: 990, durationMs: 240, active: true },
+      { label: "hcs.anchor", startMs: 1189, durationMs: 462 },
+    ],
   },
   {
     id: "decision-003",
@@ -115,6 +111,12 @@ export const decisions: Decision[] = [
     signalHash: "0x7fe1d1a022a615",
     checksPassed: 5,
     checksTotal: 5,
+    spans: [
+      { label: "x402.verify", startMs: 0, durationMs: 331 },
+      { label: "graph.gateway", startMs: 405, durationMs: 516 },
+      { label: "signal.check", startMs: 1216, durationMs: 240, active: true },
+      { label: "hcs.anchor", startMs: 1564, durationMs: 462 },
+    ],
   },
   {
     id: "decision-004",
@@ -130,6 +132,12 @@ export const decisions: Decision[] = [
     signalHash: "0x41cb287905183f",
     checksPassed: 4,
     checksTotal: 5,
+    spans: [
+      { label: "x402.verify", startMs: 0, durationMs: 331 },
+      { label: "graph.gateway", startMs: 288, durationMs: 516 },
+      { label: "signal.check", startMs: 863, durationMs: 240, active: true },
+      { label: "hcs.anchor", startMs: 976, durationMs: 462 },
+    ],
   },
 ];
 

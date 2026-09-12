@@ -71,6 +71,7 @@ export function HomePage() {
                   ["CID MATCH", "PASS", "+0.0%"],
                   ["INDEXING", "PASS", "+0.0%"],
                   ["FRESHNESS", "FAIL", "+41 blk"],
+                  ["SHAPE AGREEMENT", "PASS", "+0.0%"],
                   ["INVARIANTS", "PASS", "+0.0%"],
                 ].map(([label, status, delta]) => (
                   <div key={label} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-hairline pb-3">

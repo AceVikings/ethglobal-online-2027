@@ -26,6 +26,7 @@ export function DecisionPage() {
   }
 
   const refused = decision.verdict !== "CONFORMANT";
+  const hasCheckDetails = Boolean(decision.checks?.length);
   const copySignalHash = async () => {
     try {
       await navigator.clipboard.writeText(decision.signalHash);
@@ -44,7 +45,11 @@ export function DecisionPage() {
 
         <div className="mt-12 grid gap-12 border-b border-hairline pb-12 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
-            <StatusChip status={decision.verdict} />
+            <div className="flex flex-wrap items-center gap-3">
+              <StatusChip status={decision.verdict} />
+              <StatusChip status="PREVIEW" />
+              <span className="font-mono text-xs text-muted-copy">STATIC DATA · API PENDING</span>
+            </div>
             <h1 className="mt-6 max-w-4xl text-4xl font-medium leading-tight tracking-[-0.04em] text-primary-copy md:text-6xl">{decision.operation}</h1>
           </div>
           <div className="font-mono text-xs leading-6 text-muted-copy lg:text-right">
@@ -58,13 +63,22 @@ export function DecisionPage() {
             <h2 className="mt-3 text-2xl font-medium text-primary-copy">Policy checks</h2>
             <p className="mt-2 font-mono text-xs text-muted-copy">{decision.policy ?? "Operator policy · 50 block freshness bound"}</p>
             <div className="mt-8 border border-hairline">
-              {(decision.checks ?? []).map((check) => (
-                <div key={check.label} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-4 border-b border-hairline px-4 font-mono text-xs last:border-b-0 md:grid-cols-[1fr_90px_1fr]">
-                  <span className="text-primary-copy">{check.label}</span>
-                  <span className={check.result === "FAIL" ? "text-refusal" : "text-success"}>{check.result}</span>
-                  <span className="hidden text-right text-muted-copy md:block">{check.value}</span>
+              {hasCheckDetails ? (
+                decision.checks?.map((check) => (
+                  <div key={check.label} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-4 border-b border-hairline px-4 font-mono text-xs last:border-b-0 md:grid-cols-[1fr_90px_1fr]">
+                    <span className="text-primary-copy">{check.label}</span>
+                    <span className={check.result === "FAIL" ? "text-refusal" : "text-success"}>{check.result}</span>
+                    <span className="hidden text-right text-muted-copy md:block">{check.value}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="px-4 py-5 font-mono text-xs leading-6">
+                  <p className="text-primary-copy">Check detail unavailable for this decision</p>
+                  <p className="mt-1 text-muted-copy">
+                    {decision.checksPassed}/{decision.checksTotal} checks passed · individual evidence not provided
+                  </p>
                 </div>
-              ))}
+              )}
             </div>
           </section>
 
@@ -84,7 +98,7 @@ export function DecisionPage() {
               <Copy className="h-4 w-4" aria-hidden="true" />
             </button>
             {decision.transactionId ? (
-              <a href="https://hashscan.io/testnet" target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 w-full items-center justify-between bg-primary-copy px-4 font-medium text-button-copy focus-visible:ring-2 focus-visible:ring-active">
+              <a href={`https://hashscan.io/testnet/transaction/${encodeURIComponent(decision.transactionId)}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 w-full items-center justify-between bg-primary-copy px-4 font-medium text-button-copy focus-visible:ring-2 focus-visible:ring-active">
                 Open in HashScan <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
               </a>
             ) : null}

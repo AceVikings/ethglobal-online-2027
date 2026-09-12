@@ -19,6 +19,7 @@ const baseDecision: Decision = {
   signalHash: "0x10b9a8f2d44c97",
   checksPassed: 5,
   checksTotal: 5,
+  spans: [],
 };
 
 function renderCard(decision: Decision) {

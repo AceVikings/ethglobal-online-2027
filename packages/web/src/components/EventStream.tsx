@@ -1,12 +1,11 @@
 import { useState } from "react";
 
-import { decisions, defaultSpans, getDecision } from "../data/decisions";
+import { decisions, getDecision } from "../data/decisions";
 import { StatusChip } from "./StatusChip";
 
 export function EventStream() {
   const [selectedId, setSelectedId] = useState(decisions[0].id);
   const selected = getDecision(selectedId) ?? decisions[0];
-  const spans = selected.spans ?? defaultSpans;
 
   return (
     <section id="stream" className="scroll-mt-24 border-y border-hairline bg-surface py-20 md:py-28">
@@ -54,16 +53,19 @@ export function EventStream() {
                 <div className="grid grid-cols-[1fr_2fr_100px] gap-6 border-b border-hairline px-5 py-3 font-mono text-xs text-muted-copy">
                   <span>SPAN</span><span>START</span><span className="text-right">DURATION</span>
                 </div>
-                {spans.map((span) => (
+                {selected.spans.map((span) => (
                   <div key={span.label} className="grid min-h-16 grid-cols-[1fr_2fr_100px] items-center gap-6 border-b border-hairline px-5 font-mono text-xs last:border-b-0">
                     <span className={span.active ? "text-active" : "text-primary-copy"}>{span.label}</span>
                     <div className="relative h-1.5 w-full bg-chip" aria-label={`${span.label} timeline position`}>
                       <span
                         className={`absolute inset-y-0 ${span.active ? "bg-active" : "bg-timeline"}`}
-                        style={{ left: `${span.startPercent}%`, width: `${span.widthPercent}%` }}
+                        style={{
+                          left: `${(span.startMs / selected.durationMs) * 100}%`,
+                          width: `${(span.durationMs / selected.durationMs) * 100}%`,
+                        }}
                       />
                     </div>
-                    <span className="text-right text-muted-copy">{span.duration}</span>
+                    <span className="text-right text-muted-copy">{span.durationMs} ms</span>
                   </div>
                 ))}
               </div>
