@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { fetchTrade, fetchTradeEvents, safeTestnetLink, shortId, type Trade, type TradeEvent } from "../api/trades";
+import { ClearingFlow } from "../components/ClearingFlow";
 import { StatusChip } from "../components/StatusChip";
 import { TradeLifecycle } from "../components/TradeLifecycle";
 
@@ -32,14 +33,23 @@ export function DecisionPage() {
       return;
     }
     const controller = new AbortController();
+    let timer: number | undefined;
     setPage({ status: "loading", trade: null, events: [] });
-    Promise.all([fetchTrade(tradeDigest, controller.signal), fetchTradeEvents(tradeDigest, controller.signal)])
-      .then(([trade, events]) => setPage({ status: "ready", trade, events }))
-      .catch((error: unknown) => {
+    const refresh = async () => {
+      try {
+        const [trade, events] = await Promise.all([
+          fetchTrade(tradeDigest, controller.signal), fetchTradeEvents(tradeDigest, controller.signal),
+        ]);
+        setPage({ status: "ready", trade, events });
+      } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        setPage({ status: "error", trade: null, events: [] });
-      });
-    return () => controller.abort();
+        setPage((current) => current.status === "ready" ? current : { status: "error", trade: null, events: [] });
+      } finally {
+        if (!controller.signal.aborted) timer = window.setTimeout(refresh, 2_000);
+      }
+    };
+    void refresh();
+    return () => { controller.abort(); if (timer) window.clearTimeout(timer); };
   }, [tradeDigest, reloadKey]);
 
   const copy = async (label: string, value: string) => {
@@ -67,9 +77,11 @@ export function DecisionPage() {
   const verificationLinks = [
     ["ATS security", safeTestnetLink(trade.links.security)],
     ["ClearingEscrow", safeTestnetLink(trade.links.escrow)],
+    ["ATS hold creation", safeTestnetLink(trade.links.holdCreation)],
     ["x402 payment", safeTestnetLink(trade.links.payment)],
     [trade.settlement?.action === "RELEASE" ? "ATS release" : "ATS execution", safeTestnetLink(trade.links.settlement)],
-    ["HCS audit", safeTestnetLink(trade.links.hcsTopic)],
+    ["HCS topic", safeTestnetLink(trade.links.hcsTopic)],
+    ["HCS audit transaction", safeTestnetLink(trade.links.hcsAudit)],
   ].filter((entry): entry is [string, string] => Boolean(entry[1]));
 
   return (
@@ -81,6 +93,8 @@ export function DecisionPage() {
           <div><div className="flex flex-wrap items-center gap-3"><StatusChip status={trade.state} /><span className="font-mono text-xs text-muted-copy">{trade.instrument.network.replace("-", " ").toUpperCase()}</span></div><p className="eyebrow mt-7">{trade.sequence}</p><h1 className="mt-3 max-w-4xl font-display text-4xl font-normal leading-tight tracking-[-0.04em] text-primary-copy md:text-6xl">{trade.instrument.name}</h1><p className="mt-5 font-mono text-sm text-secondary-copy"><span aria-label={`Seller ${trade.hold.seller}`}>{shortId(trade.hold.seller)}</span><span className="mx-3 text-muted-copy">→</span><span aria-label={`Buyer ${trade.hold.buyer}`}>{shortId(trade.hold.buyer)}</span><span className="mx-3 text-muted-copy">·</span>{trade.hold.units} {trade.instrument.symbol}</p></div>
           <div className="font-mono text-xs leading-6 text-muted-copy lg:text-right"><p>HOLD {trade.hold.holdId}</p><p>CREATED {new Date(trade.hold.createdAt).toLocaleString()}</p><p>EXPIRES {new Date(trade.hold.expiresAt).toLocaleString()}</p></div>
         </div>
+
+        <div className="mt-12 overflow-hidden border border-hairline"><ClearingFlow trade={trade} /></div>
 
         <div className="grid gap-px bg-hairline lg:grid-cols-[1.15fr_0.85fr]">
           <section className="bg-canvas py-10 lg:pr-10">
@@ -95,9 +109,13 @@ export function DecisionPage() {
           <aside className="bg-canvas py-10 lg:pl-10">
             <p className="eyebrow">TRADE BINDING</p><div className="mt-5 border border-hairline p-5 font-mono text-xs leading-6 text-secondary-copy"><p>SECURITY <span className="float-right text-primary-copy">{shortId(trade.instrument.securityAddress)}</span></p><p>PARTITION <span className="float-right text-primary-copy">{shortId(trade.instrument.partition)}</span></p><p>ESCROW <span className="float-right text-primary-copy">{shortId(trade.hold.escrow)}</span></p></div>
 
-            <p className="eyebrow mt-10">X402 PAYMENT</p><div className="mt-5 border border-hairline p-5"><p className="text-2xl text-primary-copy">{trade.payment ? `${trade.payment.amount} ${trade.payment.asset}` : "Not requested"}</p><p className="mt-2 font-mono text-xs text-muted-copy">{trade.payment ? `${trade.payment.status} · ${trade.payment.facilitator}` : "No payment state"}</p>{trade.payment?.transactionId ? <p className="mt-4 font-mono text-xs text-secondary-copy">TX {shortId(trade.payment.transactionId)}</p> : null}</div>
+            <p className="eyebrow mt-10">X402 PAYMENT</p><div className="mt-5 border border-hairline p-5"><p className="text-2xl text-primary-copy">{trade.payment ? `${trade.payment.amount} ${trade.payment.asset}` : "Not requested"}</p><p className="mt-2 font-mono text-xs text-muted-copy">{trade.payment ? `${trade.payment.status} · ${trade.payment.facilitator}` : "No payment state"}</p>{trade.payment?.provenance ? <div className="mt-4 border-t border-hairline pt-4 font-mono text-xs leading-6 text-secondary-copy"><p>{trade.payment.provenance.payerProvider === "privy" ? "PRIVY REMOTE SIGNER" : "LOCAL SIGNER"} · {trade.payment.provenance.payerAccountId}</p><p>USDC {trade.payment.provenance.tokenId} · PAYEE {trade.payment.provenance.payTo}</p><p>FEE PAYER {trade.payment.provenance.feePayer}</p></div> : null}{trade.payment?.transactionId ? <p className="mt-4 font-mono text-xs text-secondary-copy">TX {shortId(trade.payment.transactionId)}</p> : null}</div>
 
-            <p className="eyebrow mt-10">ATS SETTLEMENT</p><div className={`mt-5 border p-5 ${trade.settlement?.action === "RELEASE" ? "border-refusal/50" : "border-hairline"}`}><p className="text-2xl text-primary-copy">{trade.settlement ? (trade.settlement.action === "EXECUTE" ? "Exact hold executed" : "Exact hold released") : "Awaiting confirmed action"}</p><p className="mt-2 font-mono text-xs leading-6 text-muted-copy">{trade.settlement ? `TX ${shortId(trade.settlement.transactionId)}` : "No ATS settlement transaction yet"}</p>{trade.settlement?.action === "RELEASE" ? <p className="mt-3 text-sm text-refusal-copy">No units reached the buyer.</p> : null}</div>
+            {trade.decision ? <><p className="eyebrow mt-10">GRAPH EVIDENCE PINS</p><div className="mt-5 border border-hairline p-5 font-mono text-xs leading-6 text-secondary-copy"><p>{trade.decision.evidence.standard ?? "STANDARD UNAVAILABLE"}</p><p>{trade.decision.evidence.protocol}/{trade.decision.evidence.network} · {trade.decision.evidence.deploymentsCompared ?? "—"} DEPLOYMENTS</p><p>BLOCK {trade.decision.evidence.block ?? "—"}</p><p>DEPLOYMENT {shortId(trade.decision.evidence.deploymentId ?? "unavailable")}</p><p>QUERY {shortId(trade.decision.evidence.queryHash ?? "unavailable")}</p></div></> : null}
+
+            <p className="eyebrow mt-10">ATS SETTLEMENT</p><div className={`mt-5 border p-5 ${trade.settlement?.action === "RELEASE" ? "border-refusal/50" : "border-hairline"}`}><p className="text-2xl text-primary-copy">{trade.settlement ? (trade.settlement.action === "EXECUTE" ? "Exact hold executed" : "Exact hold released") : "Awaiting confirmed action"}</p><p className="mt-2 font-mono text-xs leading-6 text-muted-copy">{trade.settlement ? `TX ${shortId(trade.settlement.transactionId)}` : "No ATS settlement transaction yet"}</p>{trade.settlement?.balances ? <div className="mt-4 border-t border-hairline pt-4 font-mono text-xs leading-6 text-secondary-copy"><p>SELLER {trade.settlement.balances.before.seller} → {trade.settlement.balances.after.seller}</p><p>BUYER {trade.settlement.balances.before.buyer} → {trade.settlement.balances.after.buyer}</p></div> : null}{trade.settlement?.action === "RELEASE" ? <p className="mt-3 text-sm text-refusal-copy">No units reached the buyer.</p> : null}</div>
+
+            <p className="eyebrow mt-10">PUBLIC REPLAY</p><div className="mt-5 border border-hairline p-5"><p className="text-2xl text-primary-copy">{trade.verification ? `${Object.values(trade.verification.checks).filter(Boolean).length}/${Object.keys(trade.verification.checks).length} checks passed` : "Replay pending"}</p><p className="mt-2 font-mono text-xs text-muted-copy">HCS {trade.settlement?.auditStatus ?? "DISABLED"}{trade.verification ? ` · ${trade.verification.passed}/${trade.verification.checked} messages` : ""}</p>{trade.verification ? <div className="mt-4 grid grid-cols-2 gap-x-4 border-t border-hairline pt-4 font-mono text-[10px] leading-6 text-secondary-copy">{Object.entries(trade.verification.checks).map(([check, pass]) => <p key={check}>{pass ? "PASS" : "FAIL"} · {check}</p>)}</div> : null}</div>
 
             <div className="mt-10"><p className="eyebrow">COPY EVIDENCE</p><div className="mt-3 border border-hairline px-4"><CopyValue label="Trade digest" value={trade.tradeDigest} copied={copied === "trade"} onCopy={() => copy("trade", trade.tradeDigest)} />{trade.decision ? <CopyValue label="Evidence hash" value={trade.decision.evidenceHash} copied={copied === "evidence"} onCopy={() => copy("evidence", trade.decision!.evidenceHash)} /> : null}{trade.payment?.transactionId ? <CopyValue label="Payment transaction" value={trade.payment.transactionId} copied={copied === "payment"} onCopy={() => copy("payment", trade.payment!.transactionId!)} /> : null}{trade.settlement ? <CopyValue label="ATS transaction" value={trade.settlement.transactionId} copied={copied === "settlement"} onCopy={() => copy("settlement", trade.settlement!.transactionId)} /> : null}</div></div>
 

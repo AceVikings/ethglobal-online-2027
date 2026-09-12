@@ -68,10 +68,10 @@ to a merged commit so the evidence cannot move during judging.
 
 | Requirement | Implementation | Status | Code |
 | --- | --- | --- | --- |
-| Live x402 service on Hedera through Blocky402 | `/verdict` registers the exact Hedera scheme with Blocky402 and Circle testnet USDC; no valid payment means no evaluation or verdict. | **Pending:** locally running; public hosting and a paid request remain | [payment gate][loc-x402-server] |
-| Agent completes a real paid request | The buyer enforces network, payee, asset, Blocky fee payer, and spend cap before signing; the caretaker uses that paid fetch. | **Pending:** buyer needs faucet USDC | [bounded buyer][loc-x402-buyer], [wiring][loc-caretaker-pay] |
+| Live x402 service on Hedera through Blocky402 | `/verdict` registers the exact Hedera scheme with Blocky402 and Circle testnet USDC; no valid payment means no evaluation or verdict. | **Complete on testnet:** paid request settled through Blocky402 | [payment gate][loc-x402-server] |
+| Agent completes a real paid request | The buyer enforces network, payee, asset, Blocky fee payer, and spend cap before signing; the caretaker uses that paid fetch. | **Complete:** Privy payer sent `0.01` canonical testnet USDC | [bounded buyer][loc-x402-buyer], [wiring][loc-caretaker-pay] |
 | Public source and payment-flow docs | This README documents setup, architecture, and the runnable payment flow. | **Pending:** repository is private until the final publication step | This document |
-| Five-minute-or-less paid-request demo | The demo uses the caretaker and only passes after the facilitator transaction and settlement are confirmed. | **Pending:** record after the paid run | [payment to finality][loc-caretaker-finality] |
+| Five-minute-or-less paid-request demo | The demo uses the caretaker and only passes after the facilitator transaction and settlement are confirmed. | **Flow complete;** final video recording remains | [payment to finality][loc-caretaker-finality], [guided dashboard][loc-guided-flow] |
 
 Hedera is also the execution and audit layer: the ATS hold prevents double-spending, the escrow
 consumes a one-use authorization, and the agent attempts to record the final digest on HCS after
@@ -84,7 +84,7 @@ settlement. An HCS outage degrades audit metadata but cannot reverse or duplicat
 | Use ATS to issue or manage a tokenized asset | ATS issues `Spokane Private Credit Fund` units, configures regulation metadata and roles, seeds the seller, and creates an escrow-bound hold. | **Complete on testnet** | [issuance][loc-ats-issue], [hold][loc-ats-hold] |
 | Deploy and demonstrate on Hedera testnet | The security, clearing escrow, parties, and restricted HCS topic are deployed on testnet; public links are below. | **Complete on testnet** | [escrow][loc-escrow] |
 | Public repo and verified contracts where applicable | Contract source is included and Sourcify exactly matches both creation and runtime bytecode. | **Source verified;** public switch pending | [contract source][loc-escrow] |
-| Show issuance, configuration, and a lifecycle operation | The approved lifecycle executes the ATS hold after a paid verdict; the caretaker verifies the exact seller/buyer balance delta. | **Pending:** final hold execution awaits paid run | [finality assertions][loc-caretaker-finality] |
+| Show issuance, configuration, and a lifecycle operation | The approved lifecycle executes the ATS hold after a paid verdict; the caretaker verifies the exact seller/buyer balance delta. | **Complete:** hold `2` executed; buyer gained exactly `1.0` unit | [finality assertions][loc-caretaker-finality], [public projection][loc-public-proof] |
 
 This is a secondary-market clearing use case, not a decorative token. ATS supplies issuance,
 ownership, roles, and the hold lifecycle; the Desk adds paid market-data assurance and atomic
@@ -113,8 +113,8 @@ execution for an exact off-exchange transfer.
 | Requirement | Implementation | Status | Code |
 | --- | --- | --- | --- |
 | Privy is core and at least one wallet is used | The buyer is a Privy Ethereum server wallet paired to a Hedera ECDSA account; its payment key is never exported into the app. | **Complete; live raw-sign validated** | [wallet client][loc-privy-client] |
-| Functional flow using a generally available feature | Privy's wallet RPC signs each Hedera transaction-body hash used by the x402 USDC transfer. | **Pending:** funded Blocky402 transfer | [Hedera signer][loc-privy-signer], [caretaker selection][loc-caretaker-pay] |
-| Working demo and source | The caretaker performs payment, decision, ATS settlement, and audit anchoring. | **Pending:** paid run, public switch, and video | [end-to-end caretaker][loc-caretaker-finality] |
+| Functional flow using a generally available feature | Privy's wallet RPC signs each Hedera transaction-body hash used by the x402 USDC transfer. | **Complete:** funded payment settled from the Privy-controlled account | [Hedera signer][loc-privy-signer], [caretaker selection][loc-caretaker-pay] |
+| Working demo and source | The caretaker performs payment, decision, ATS settlement, and audit anchoring. | **Flow complete;** public switch and video remain | [end-to-end caretaker][loc-caretaker-finality], [guided dashboard][loc-guided-flow] |
 | Explain Privy's UX improvement | The agent pays from a managed wallet without exposing the Privy payment key, while local limits remain enforced. | **Complete** | [bounded policy][loc-x402-buyer] |
 
 ## Live testnet resources
@@ -125,9 +125,14 @@ execution for an exact off-exchange transfer.
 | ClearingEscrow — `0.0.10506286` | [HashScan](https://hashscan.io/testnet/contract/0.0.10506286) · [Sourcify exact match](https://sourcify.dev/server/v2/contract/296/0x5D6Ee3b3f1f28872041F104ba4709Ac3a4fE4439) |
 | Restricted audit topic — `0.0.10506273` | [HashScan](https://hashscan.io/testnet/topic/0.0.10506273) |
 | Privy-controlled buyer — `0.0.10506237` | [HashScan](https://hashscan.io/testnet/account/0.0.10506237) |
+| ATS hold creation — hold `2` | [HashScan](https://hashscan.io/testnet/transaction/0xfeb7eab09bfc768a4c624ea2a10a5278ea45fd3b77e99691f91802f372ef7cd2) |
+| Privy + Blocky402 payment — `0.01 USDC` | [HashScan](https://hashscan.io/testnet/transaction/0.0.7162784@1789243987.325425735) |
+| ClearingEscrow execution | [HashScan](https://hashscan.io/testnet/transaction/0.0.7314364-1789244000-627475762) |
+| HCS audit anchor — sequence `1` | [HashScan](https://hashscan.io/testnet/transaction/0.0.7078256@1789244136.640562221) |
 
-These links prove resource existence, not the final paid demo. The final payment transaction,
-`HoldSettled` event, ATS balance delta, and HCS sequence number must come from one completed run.
+These resources come from one completed paid run. Its public replay passed all 11 bindings: signature,
+trade digest, payment reference, evidence hash, authorization pins, action, held trade, consumed nonce,
+contract event, Mirror finality, and consumed ATS hold.
 
 ## Run locally
 
@@ -167,9 +172,10 @@ node --env-file=.env --experimental-strip-types scripts/run-caretaker.cjs --exec
 node --env-file=.env scripts/replay.cjs --execute
 ```
 
-The dashboard at `http://127.0.0.1:5173` polls the local seller API and shows only durable,
-chain-confirmed trades. Before settlement it intentionally displays “No held trades”; it never
-inserts a fixture to manufacture demo state.
+The dashboard at `http://127.0.0.1:5173` polls the local seller API and guides the viewer through the
+real ATS hold, Privy-backed payment, Graph evidence pins, signed policy, balance-changing settlement,
+HCS anchor, and 11-check replay. Before settlement it intentionally displays “No held trades”; it
+never inserts a fixture to manufacture demo state.
 
 Follow [`docs/E2E.md`](docs/E2E.md) for the evidence checklist, recovery rules, and negative tests.
 
@@ -213,15 +219,14 @@ Follow [`docs/E2E.md`](docs/E2E.md) for the evidence checklist, recovery rules, 
 
 ## Verification status
 
-The merged code passes 149 Node/browser tests, 15 Foundry tests, all workspace builds, and a local
-Playwright smoke test against the real API proxy with zero console warnings or errors. The Graph
-sweep read all six pinned deployments from live providers. ATS issuance and roles, seller seeding,
-hold creation, escrow deployment, restricted HCS topic creation, Privy raw signing, and the local
-dashboard are live-validated.
+The code passes the Node/UI and Foundry suites plus all workspace builds. The funded testnet run paid
+`0.01` canonical USDC from the Privy-controlled buyer, evaluated six live Graph deployments, executed
+the exact ATS hold, reached Mirror finality, anchored HCS sequence `1`, and passed all 11 independent
+replay checks. The local seller API and Vite proxy both return that same sanitized durable state.
 
-The remaining qualification gate is one funded testnet run: the Privy buyer needs faucet USDC for a
-real Blocky402 payment. Until then, this README does not claim that the Hedera agentic-payment or
-Privy financial-flow requirement is complete.
+Remaining presentation work is operational: make the repository public and record the final uncut
+demo. A fresh visual browser-console pass is also required before recording; unit/UI tests do not
+substitute for that check.
 
 Primary references: [Hedera ATS](https://docs.hedera.com/solutions/tokenization/ats),
 [Hedera x402](https://docs.hedera.com/solutions/ai/x402),
@@ -243,3 +248,5 @@ Primary references: [Hedera ATS](https://docs.hedera.com/solutions/tokenization/
 [loc-service-boundary]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/packages/service/src/server.ts#L77-L127
 [loc-privy-client]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/packages/privy-hedera-poc/src/client.ts#L49-L145
 [loc-privy-signer]: https://github.com/AceVikings/ethglobal-online-2027/blob/ea3e373cbc22e05ace3a50773f11ca7a0bbea238/packages/privy-hedera-poc/src/adapter.ts#L81-L140
+[loc-guided-flow]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/web/src/components/ClearingFlow.tsx#L76-L240
+[loc-public-proof]: https://github.com/AceVikings/ethglobal-online-2027/blob/main/packages/service/src/trades.ts#L50-L151

@@ -34,6 +34,11 @@ export type Trade = {
     units: string;
     createdAt: string;
     expiresAt: string;
+    creationTransactionId: string | null;
+    balances: null | {
+      before: { seller: string; buyer: string };
+      after: { seller: string; buyer: string };
+    };
   };
   payment: null | {
     status: "REQUIRED" | "SETTLED" | "FAILED";
@@ -42,6 +47,13 @@ export type Trade = {
     facilitator: "Blocky402";
     reference: string | null;
     transactionId: string | null;
+    provenance: null | {
+      payerProvider: "privy" | "local";
+      payerAccountId: string;
+      tokenId: string;
+      payTo: string;
+      feePayer: string;
+    };
   };
   decision: null | {
     policyHash: `0x${string}`;
@@ -59,21 +71,45 @@ export type Trade = {
     }>;
     explanation: string | null;
     explanationProvider: "deepseek" | null;
+    evidence: {
+      standard: string | null;
+      protocol: string | null;
+      network: string | null;
+      deploymentId: string | null;
+      block: number | null;
+      queryHash: string | null;
+      deploymentsCompared: number | null;
+    };
   };
   settlement: null | {
     action: "EXECUTE" | "RELEASE";
     transactionId: string;
     consensusAt: string;
     contractEvent: string;
+    balances: null | {
+      before: { seller: string; buyer: string };
+      after: { seller: string; buyer: string };
+    };
+    auditStatus: "ANCHORED" | "DEGRADED" | "DISABLED";
+    hcsTransactionId: string | null;
     hcsTopicId: string | null;
     hcsSequenceNumber: number | null;
+  };
+  verification: null | {
+    verifiedAt: string;
+    checked: number;
+    passed: number;
+    failed: number;
+    checks: Record<string, boolean>;
   };
   links: {
     security: string;
     escrow: string;
+    holdCreation: string | null;
     payment: string | null;
     settlement: string | null;
     hcsTopic: string | null;
+    hcsAudit: string | null;
   };
   updatedAt: string;
 };

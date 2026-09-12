@@ -62,7 +62,7 @@ npm run check
 npm run build
 ```
 
-The clean gate is 149 Node/browser tests, 15 Foundry tests, and a successful web production build.
+The clean gate is the complete Node/UI suite, 15 Foundry tests, and all successful workspace builds.
 
 ## 2. Verify live public infrastructure
 
@@ -151,7 +151,8 @@ Require the final state to report:
 - one escrow transaction hash and trade digest;
 - nonce consumed;
 - hold amount zero;
-- seller decrease and buyer increase equal to the stored raw hold amount;
+- for approval, seller liquid balance stays unchanged because ATS already excluded the held units,
+  while the buyer increases by the stored raw hold amount;
 - Mirror transaction ID;
 - HCS sequence metadata, or an explicit degraded audit status if HCS alone failed.
 
@@ -161,7 +162,7 @@ not demonstrated until the anchor succeeds.
 ## 7. Independently replay public evidence
 
 ```bash
-node --env-file=.env scripts/replay.cjs --execute
+CARETAKER_STATE_FILE="$CARETAKER_STATE_FILE" node --env-file=.env scripts/replay.cjs --execute
 ```
 
 Pass only when `checked` is at least `1`, `failed` is `0`, and every row confirms signature, trade
@@ -173,6 +174,8 @@ consumed ATS hold. Zero topic messages exits non-zero by design.
 Open `http://127.0.0.1:5173` and verify:
 
 - the completed trade appears without a refresh after API polling;
+- its guided trace shows the ATS creation, Privy payer and canonical USDC, six Graph deployments,
+  signed action, raw ATS balance delta, HCS anchor, and all 11 replay checks;
 - its amount, action, protocol, lifecycle, and transaction links match the caretaker state;
 - the timeline reaches payment, evidence, authorization, settlement, and audit in order;
 - opening the trade reveals no secret, raw Graph row, or payment authorization;

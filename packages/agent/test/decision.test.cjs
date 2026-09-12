@@ -3,7 +3,10 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const { Wallet } = require('ethers')
-const { AUTHORIZATION_TYPES, CLEARING_PHASE, runClearingTrade, verifyClearingAuthorization } = require('../src/decision.cjs')
+const {
+  AUTHORIZATION_TYPES, CLEARING_PHASE, normalizeAuthorization, runClearingTrade,
+  verifyClearingAuthorization,
+} = require('../src/decision.cjs')
 
 const ADDRESS = {
   escrow: `0x${'11'.repeat(20)}`,
@@ -141,6 +144,25 @@ test('resume after on-chain settlement confirms state without resubmitting', asy
   const result = await runClearingTrade({ trade: f.trade, request: {} }, f.deps, persisted)
   assert.equal(result.lifecycle, 'EXECUTED')
   assert.deepEqual(f.calls, ['pay', 'execute', 'audit'])
+})
+
+test('completed state can recover a missing Mirror transaction ID without re-anchoring', async () => {
+  const f = dependencies(1)
+  const complete = await runClearingTrade({ trade: f.trade, request: {} }, f.deps)
+  complete.settlement.transactionId = undefined
+  f.calls.length = 0
+  const recovered = await runClearingTrade({ trade: f.trade, request: {} }, f.deps, complete)
+  assert.equal(recovered.phase, CLEARING_PHASE.COMPLETE)
+  assert.equal(recovered.settlement.transactionId, '0.0.123@1789200001.000000001')
+  assert.deepEqual(f.calls, [])
+})
+
+test('normalizes decoded authorization tuples into mutable named objects', () => {
+  const { authorization } = fixture(1)
+  const decodedLike = Object.freeze({ ...authorization })
+  const normalized = normalizeAuthorization(decodedLike)
+  assert.deepEqual(normalized, authorization)
+  assert.notEqual(normalized, decodedLike)
 })
 
 test('audit failure is degraded metadata and never falsifies final settlement', async () => {

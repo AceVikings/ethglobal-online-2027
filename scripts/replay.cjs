@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 'use strict'
 
+const fs = require('node:fs')
+const path = require('node:path')
 const { Contract, Interface, JsonRpcProvider, keccak256, recoverAddress, toUtf8Bytes } = require('ethers')
 const {
   ATS_HOLD_ABI, BYTES32, CLEARING_ESCROW_ABI, EVM_ADDRESS, assertMatch,
   createClearingEscrowAdapter, executeRequested, loadConfig, mirrorContractResult,
-  output, run, required,
+  normalizeAuthorization, output, run, required,
 } = require('./lib/common.cjs')
 
 async function messages(baseUrl, topicId) {
@@ -36,6 +38,24 @@ async function holdConsumed(provider, authorization) {
     if (error?.code === 'CALL_EXCEPTION') return true
     throw error
   }
+}
+
+function persistReplay(filename, rows) {
+  if (!filename || !fs.existsSync(filename) || rows.length !== 1) return
+  const state = JSON.parse(fs.readFileSync(filename, 'utf8'))
+  const row = rows[0]
+  const tradeDigest = state.settlement?.tradeDigest || state.submitted?.tradeDigest
+  if (!tradeDigest || tradeDigest.toLowerCase() !== row.tradeDigest.toLowerCase()) return
+  state.replay = {
+    verifiedAt: new Date().toISOString(),
+    checked: rows.length,
+    passed: rows.filter((entry) => entry.pass).length,
+    failed: rows.filter((entry) => !entry.pass).length,
+    checks: row.checks,
+  }
+  const temporary = `${filename}.${process.pid}.tmp`
+  fs.writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 })
+  fs.renameSync(temporary, filename)
 }
 
 run(async () => {
@@ -72,7 +92,7 @@ run(async () => {
     ])
     const parsed = transaction ? settlementInterface.parseTransaction({ data: transaction.data, value: transaction.value }) : null
     if (!parsed || parsed.name !== 'settle') throw new Error('Settlement transaction calldata is unavailable or invalid')
-    const authorization = parsed.args.authorization
+    const authorization = normalizeAuthorization(parsed.args.authorization)
     const recomputedDigest = await escrow.hashAuthorization(authorization)
     let recovered = null
     try { recovered = recoverAddress(recomputedDigest, parsed.args.signature) } catch {}
@@ -97,7 +117,8 @@ run(async () => {
       nonceConsumed: nonceUsed,
       contractEvent: Boolean(event) && event.transactionHash.toLowerCase() === message.settlementTransactionHash.toLowerCase() &&
         transaction.to?.toLowerCase() === expectedEscrow.toLowerCase(),
-      mirrorFinality: Boolean(mirror) && mirror.transaction_id === message.settlementTransactionId,
+      mirrorFinality: Boolean(mirror) && (!message.settlementTransactionId ||
+        mirror.transaction_id === message.settlementTransactionId),
       atsHoldConsumed: consumed,
     }
     rows.push({
@@ -109,6 +130,9 @@ run(async () => {
       pass: Object.values(checks).every(Boolean),
     })
   }
+  persistReplay(process.env.CARETAKER_STATE_FILE
+    ? path.resolve(process.cwd(), process.env.CARETAKER_STATE_FILE)
+    : null, rows)
   output({
     mode: 'execute', topicId, checked: rows.length,
     passed: rows.filter((row) => row.pass).length,

@@ -10,23 +10,30 @@ type EventState =
 
 export function EventStream({ trades }: { trades: Trade[] }) {
   const [selectedDigest, setSelectedDigest] = useState(trades[0]?.tradeDigest ?? "");
+  const [retryKey, setRetryKey] = useState(0);
   const [eventState, setEventState] = useState<EventState>({ status: "idle", events: [] });
   const selected = trades.find((trade) => trade.tradeDigest === selectedDigest) ?? trades[0];
 
   useEffect(() => {
     if (!selected) return;
     const controller = new AbortController();
+    let timer: number | undefined;
     setEventState({ status: "loading", events: [] });
-    const refresh = () => fetchTradeEvents(selected.tradeDigest, controller.signal)
-      .then((events) => setEventState({ status: "ready", events }))
-      .catch((error: unknown) => {
+    const digest = selected.tradeDigest;
+    const refresh = async () => {
+      try {
+        const events = await fetchTradeEvents(digest, controller.signal);
+        setEventState({ status: "ready", events });
+      } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setEventState({ status: "error", events: [] });
-      });
+      } finally {
+        if (!controller.signal.aborted) timer = window.setTimeout(refresh, 2_000);
+      }
+    };
     void refresh();
-    const timer = window.setInterval(refresh, 2_000);
-    return () => { controller.abort(); window.clearInterval(timer); };
-  }, [selected]);
+    return () => { controller.abort(); if (timer) window.clearTimeout(timer); };
+  }, [selected?.tradeDigest, retryKey]);
 
   if (!selected) return null;
 
@@ -76,7 +83,8 @@ export function EventStream({ trades }: { trades: Trade[] }) {
               ) : eventState.status === "error" ? (
                 <div className="flex min-h-56 flex-col justify-center border border-hairline p-6">
                   <p className="text-lg font-medium text-primary-copy">Activity unavailable</p>
-                  <p className="mt-2 max-w-md text-sm leading-6 text-secondary-copy">The trade summary loaded, but its lifecycle events could not be confirmed. Refresh to retry.</p>
+                  <p className="mt-2 max-w-md text-sm leading-6 text-secondary-copy">The trade summary loaded, but its lifecycle events could not be confirmed.</p>
+                  <button type="button" onClick={() => setRetryKey((value) => value + 1)} className="mt-5 min-h-10 self-start bg-action px-4 text-sm font-medium text-white focus-visible:ring-2 focus-visible:ring-active">Retry activity</button>
                 </div>
               ) : eventState.events.length === 0 ? (
                 <div className="flex min-h-56 flex-col justify-center border border-hairline p-6">

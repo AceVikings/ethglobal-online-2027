@@ -2,7 +2,9 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { createClearingEscrowAdapter, createEip1193Wallet } = require('../src/ats.cjs')
+const {
+  createClearingEscrowAdapter, createEip1193Wallet, holdSettlementBalancesMatch,
+} = require('../src/ats.cjs')
 
 test('ATS Node adapter exposes the configured signer through EIP-1193', async () => {
   const sent = []
@@ -30,4 +32,21 @@ test('ATS Node adapter exposes the configured signer through EIP-1193', async ()
 test('clearing escrow adapter rejects missing connection inputs', () => {
   assert.throws(() => createClearingEscrowAdapter(null, '0x0000000000000000000000000000000000000001'), /provider or signer/)
   assert.throws(() => createClearingEscrowAdapter({}, ''), /address is required/)
+})
+
+test('ATS settlement checks balanceOf semantics for held units', () => {
+  const held = { seller: '0', buyer: '500000' }
+  assert.equal(holdSettlementBalancesMatch(1, '1000000', held, {
+    seller: '0', buyer: '1500000',
+  }), true)
+  assert.equal(holdSettlementBalancesMatch(2, '1000000', held, {
+    seller: '1000000', buyer: '500000',
+  }), true)
+  assert.equal(holdSettlementBalancesMatch(1, '1000000', held, {
+    seller: '1000000', buyer: '1500000',
+  }), false)
+  assert.equal(holdSettlementBalancesMatch(2, '1000000', held, {
+    seller: '0', buyer: '500000',
+  }), false)
+  assert.equal(holdSettlementBalancesMatch(3, '1000000', held, held), false)
 })

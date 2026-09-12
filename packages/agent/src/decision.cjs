@@ -89,6 +89,12 @@ function extractSignedAuthorization(verdict) {
   return { authorization, signature }
 }
 
+function normalizeAuthorization(authorization) {
+  return Object.fromEntries(
+    AUTHORIZATION_TYPES.Verdict.map(({ name }) => [name, authorization[name]]),
+  )
+}
+
 function assertActionBoundAuthorization(authorization, trade, paymentTxId, paymentReferenceHash) {
   for (const field of TRADE_FIELDS) assertSame(field, authorization[field], trade[field])
   if (authorization.action !== CLEARING_ACTION.APPROVE && authorization.action !== CLEARING_ACTION.DENY) {
@@ -175,6 +181,9 @@ async function runClearingTrade(input, deps, initialState = null) {
   if (state.phase === CLEARING_PHASE.COMPLETE && state.audit?.status === 'DEGRADED') {
     state.phase = CLEARING_PHASE.SETTLED
   }
+  if (state.phase === CLEARING_PHASE.COMPLETE && !state.settlement?.transactionId && state.submitted?.transactionHash) {
+    state.phase = CLEARING_PHASE.SETTLEMENT_SUBMITTED
+  }
 
   while (state.phase !== CLEARING_PHASE.COMPLETE) {
     switch (state.phase) {
@@ -237,6 +246,10 @@ async function runClearingTrade(input, deps, initialState = null) {
         break
       }
       case CLEARING_PHASE.SETTLED: {
+        if (state.audit?.status === 'ANCHORED') {
+          await transition(state, CLEARING_PHASE.COMPLETE, { audit: state.audit }, deps)
+          break
+        }
         const message = {
           t: 'CLEARING_DECISION', v: 2,
           tradeDigest: state.settlement.tradeDigest || state.submitted?.tradeDigest,
@@ -270,6 +283,7 @@ module.exports = {
   CLEARING_ACTION,
   CLEARING_PHASE,
   AUTHORIZATION_TYPES,
+  normalizeAuthorization,
   TRADE_FIELDS,
   assertActionBoundAuthorization,
   assertExactHold,
