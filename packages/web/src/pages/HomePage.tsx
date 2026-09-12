@@ -26,7 +26,9 @@ export function HomePage() {
       <section className="hero-cinematic relative flex min-h-[100svh] items-center justify-center overflow-hidden px-4 pb-16 pt-32 md:px-8 md:pt-28">
         <img
           className="hero-still-layer absolute inset-0 h-full w-full object-cover"
-          src="/conformance-hero-still.webp"
+          src="/conformance-hero-v2.webp"
+          width="1672"
+          height="941"
           alt=""
           fetchPriority="high"
           aria-hidden="true"
@@ -34,6 +36,7 @@ export function HomePage() {
         <video
           className="hero-motion-layer absolute inset-0 h-full w-full object-cover"
           src="/conformance-hero-loop.mp4"
+          poster="/conformance-hero-v2.webp"
           autoPlay
           muted
           loop
