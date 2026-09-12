@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUpRight, Bot, Braces, CircleDollarSign, LockKeyhole, Sc
 import { useEffect, useState, type CSSProperties } from "react";
 
 import { fetchTrades, type TradeListResponse } from "../api/trades";
+import { ClearingFlow } from "../components/ClearingFlow";
 import { DecisionCard } from "../components/DecisionCard";
 import { EventStream } from "../components/EventStream";
 
@@ -20,6 +21,14 @@ const proofSteps = [
   { icon: Bot, eyebrow: "AI EXPLANATION", title: "DeepSeek explains—not decides.", copy: "The model summarizes the fixed result and has no signing key, custody, issuer role, or power to override policy." },
   { icon: ScrollText, eyebrow: "FINALITY + AUDIT", title: "Execute or release exactly once.", copy: "The contract consumes the bound verdict, changes the ATS hold, then emits matching contract and HCS evidence." },
 ];
+
+const proofGridClasses = [
+  "lg:col-span-5",
+  "lg:col-span-3",
+  "lg:col-span-4",
+  "lg:col-span-7",
+  "lg:col-span-5",
+] as const;
 
 export function HomePage() {
   const [reloadKey, setReloadKey] = useState(0);
@@ -56,8 +65,7 @@ export function HomePage() {
   return (
     <main>
       <section className="hero-cinematic relative flex min-h-[100svh] items-center justify-center overflow-hidden px-4 pb-16 pt-32 md:px-8 md:pt-28">
-        <img className="hero-still-layer absolute inset-0 h-full w-full object-cover" src="/conformance-hero-v2.webp" width="1672" height="941" alt="" fetchPriority="high" aria-hidden="true" />
-        <video className="hero-motion-layer absolute inset-0 h-full w-full object-cover" src="/conformance-hero-loop.mp4" poster="/conformance-hero-v2.webp" autoPlay muted loop playsInline preload="metadata" aria-hidden="true" />
+        <img className="hero-still-layer absolute inset-0 h-full w-full object-cover" src="/clearing-desk-hero-v3.webp" width="1672" height="941" alt="" fetchPriority="high" aria-hidden="true" />
         <div className="hero-overlay absolute inset-0" aria-hidden="true" />
         <div className="hero-content relative mx-auto flex w-full max-w-7xl flex-col items-center text-center">
           <p className="fade-rise mb-5 font-mono text-xs uppercase tracking-[0.18em] text-secondary-copy" style={entranceDelay(TIMING.heading)}>ATS FUND-UNIT CLEARING · HEDERA TESTNET</p>
@@ -67,11 +75,13 @@ export function HomePage() {
           <p className="fade-rise mt-8 max-w-[670px] text-base leading-[1.625] text-secondary-copy md:text-lg" style={entranceDelay(TIMING.copy)}>
             A seller locks ATS fund units. A buyer agent pays for a live-data verdict. The clearing contract executes or releases that exact hold.
           </p>
-          <a href="#desk" className="fade-rise pill-action mt-10 inline-flex min-h-16 items-center gap-4 bg-action px-14 text-base font-medium text-white focus-visible:ring-2 focus-visible:ring-active focus-visible:ring-offset-2 focus-visible:ring-offset-canvas" style={entranceDelay(TIMING.action)}>
+          <a href="#desk" className="fade-rise pill-action mt-8 inline-flex min-h-14 items-center gap-4 bg-action px-14 text-base font-medium text-white focus-visible:ring-2 focus-visible:ring-active focus-visible:ring-offset-2 focus-visible:ring-offset-canvas" style={entranceDelay(TIMING.action)}>
             View clearing desk <ArrowDown className="h-4 w-4" aria-hidden="true" />
           </a>
         </div>
       </section>
+
+      <ClearingFlow />
 
       <section id="desk" className="scroll-mt-12 py-20 md:py-28">
         <div className="mx-auto max-w-7xl px-4 md:px-8 lg:px-14">
@@ -104,9 +114,9 @@ export function HomePage() {
       <section id="proof" className="scroll-mt-20 py-20 md:py-28">
         <div className="mx-auto max-w-7xl px-4 md:px-8 lg:px-14">
           <div className="mb-10"><p className="eyebrow">HOW THE TRADE CLEARS</p><h2 className="mt-4 max-w-3xl font-display text-4xl font-normal tracking-[-1px] text-primary-copy md:text-6xl">Authority stays with policy and escrow.</h2></div>
-          <div className="grid gap-px bg-hairline md:grid-cols-2 lg:grid-cols-5">
-            {proofSteps.map(({ icon: Icon, eyebrow, title, copy }) => (
-              <article key={eyebrow} className="min-h-80 bg-surface p-6"><Icon className="h-5 w-5 text-active" aria-hidden="true" /><p className="eyebrow mt-8">{eyebrow}</p><h3 className="mt-3 text-lg font-medium text-primary-copy">{title}</h3><p className="mt-4 text-sm leading-6 text-secondary-copy">{copy}</p></article>
+          <div className="grid gap-px bg-hairline md:grid-cols-2 lg:grid-cols-12">
+            {proofSteps.map(({ icon: Icon, eyebrow, title, copy }, index) => (
+              <article key={eyebrow} className={`min-h-72 bg-surface p-6 ${proofGridClasses[index]}`}><Icon className="h-5 w-5 text-active" aria-hidden="true" /><p className="eyebrow mt-8">{eyebrow}</p><h3 className="mt-3 max-w-sm text-xl font-medium text-primary-copy">{title}</h3><p className="mt-4 max-w-md text-sm leading-6 text-secondary-copy">{copy}</p></article>
             ))}
           </div>
 
