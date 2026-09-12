@@ -27,6 +27,10 @@ const unavailableSession: PrivySession = {
 };
 
 const PrivySessionContext = createContext<PrivySession>(unavailableSession);
+// Privy app IDs are public browser identifiers. Render may build this manually
+// configured service without applying render.yaml, so keep the deployed app ID
+// as a safe fallback; the app secret remains server-only.
+const DEPLOYED_PRIVY_APP_ID = "cmtyhw5k700fo0cia82y7o5pg";
 
 function PrivySessionBridge({ children }: { children: ReactNode }) {
   const { authenticated, getAccessToken, login, logout, ready, user } = usePrivy();
@@ -62,7 +66,7 @@ function PrivySessionBridge({ children }: { children: ReactNode }) {
 }
 
 export function PrivyAuthProvider({ children }: { children: ReactNode }) {
-  const appId = import.meta.env.VITE_PRIVY_APP_ID?.trim();
+  const appId = import.meta.env.VITE_PRIVY_APP_ID?.trim() || DEPLOYED_PRIVY_APP_ID;
 
   if (!appId) {
     return <PrivySessionContext.Provider value={unavailableSession}>{children}</PrivySessionContext.Provider>;
