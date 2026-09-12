@@ -89,13 +89,13 @@ test('allows only the exact configured frontend origin to read the public API', 
   assert.throws(() => createVerdictServer({
     signingKey: key, paymentGate: { async authorize() { return { ok: false } } },
     async evaluator() { throw new Error('unused') }, corsAllowedOrigin: 'https://example.com/path',
-  }), /exact HTTP\(S\) origin/)
+  }), /exact HTTP\(S\) origins/)
 
   const cors = createVerdictServer({
     signingKey: key,
     paymentGate: { async authorize() { return { ok: false } } },
     async evaluator() { throw new Error('unused') },
-    corsAllowedOrigin: 'https://desk.example',
+    corsAllowedOrigin: 'https://desk.example,http://localhost:5173,http://127.0.0.1:5173',
   })
   await new Promise<void>((resolve) => cors.listen(0, '127.0.0.1', resolve))
   try {
@@ -108,6 +108,9 @@ test('allows only the exact configured frontend origin to read the public API', 
 
     const denied = await fetch(url, { headers: { origin: 'https://attacker.example' } })
     assert.equal(denied.headers.get('access-control-allow-origin'), null)
+
+    const localhost = await fetch(url, { headers: { origin: 'http://localhost:5173' } })
+    assert.equal(localhost.headers.get('access-control-allow-origin'), 'http://localhost:5173')
 
     const preflight = await fetch(url, {
       method: 'OPTIONS',

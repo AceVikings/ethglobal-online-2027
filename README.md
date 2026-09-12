@@ -10,6 +10,17 @@ There is no simulated success path. The UI reads the durable result of this work
 publishes a trade after the x402 payment, contract event, ATS balance change, and Mirror Node result
 have all been confirmed.
 
+## Live application
+
+- Dashboard: [ethglobal-online-2027.onrender.com](https://ethglobal-online-2027.onrender.com)
+- Clearing API: [health](https://conformance-desk-api-4p35sr23vq-uc.a.run.app/health) · [confirmed trades](https://conformance-desk-api-4p35sr23vq-uc.a.run.app/api/v1/trades)
+- Source: [public GitHub repository](https://github.com/AceVikings/ethglobal-online-2027)
+
+The dashboard is a Render Static Site. Its browser requests go to the scale-to-zero Cloud Run API.
+The API reads only a sanitized, chain-confirmed caretaker state file from a read-only Cloud Storage
+mount. Deployment from `main` uses GitHub OIDC and Workload Identity Federation, not a stored GCP
+service-account key. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 ## Why this exists
 
 Tokenizing an asset is only the first step. Private-market counterparties still need to know whether
@@ -62,7 +73,7 @@ presentation: it can explain the fixed result, but it cannot decide, sign, pay, 
 
 Requirements are from the current
 [ETHOnline 2026 prize page](https://ethglobal.com/events/ethonline2026/prizes). Code links are pinned
-to a merged commit so the evidence cannot move during judging.
+to the public `main` branch so judges can inspect the current implementation.
 
 ### Hedera — AI & Agentic Payments
 
@@ -70,8 +81,8 @@ to a merged commit so the evidence cannot move during judging.
 | --- | --- | --- | --- |
 | Live x402 service on Hedera through Blocky402 | `/verdict` registers the exact Hedera scheme with Blocky402 and Circle testnet USDC; no valid payment means no evaluation or verdict. | **Complete on testnet:** paid request settled through Blocky402 | [payment gate][loc-x402-server] |
 | Agent completes a real paid request | The buyer enforces network, payee, asset, Blocky fee payer, and spend cap before signing; the caretaker uses that paid fetch. | **Complete:** Privy payer sent `0.01` canonical testnet USDC | [bounded buyer][loc-x402-buyer], [wiring][loc-caretaker-pay] |
-| Public source and payment-flow docs | This README documents setup, architecture, and the runnable payment flow. | **Pending:** repository is private until the final publication step | This document |
-| Five-minute-or-less paid-request demo | The demo uses the caretaker and only passes after the facilitator transaction and settlement are confirmed. | **Flow complete;** final video recording remains | [payment to finality][loc-caretaker-finality], [guided dashboard][loc-guided-flow] |
+| Public source and payment-flow docs | This public repository documents setup, architecture, the funded transaction, and the runnable payment flow. | **Complete** | This document |
+| Five-minute-or-less paid-request demo | The demo uses the caretaker and only passes after the facilitator transaction and settlement are confirmed. | **Live flow complete;** recording is a submission artifact | [payment to finality][loc-caretaker-finality], [guided dashboard][loc-guided-flow] |
 
 Hedera is also the execution and audit layer: the ATS hold prevents double-spending, the escrow
 consumes a one-use authorization, and the agent attempts to record the final digest on HCS after
@@ -83,7 +94,7 @@ settlement. An HCS outage degrades audit metadata but cannot reverse or duplicat
 | --- | --- | --- | --- |
 | Use ATS to issue or manage a tokenized asset | ATS issues `Spokane Private Credit Fund` units, configures regulation metadata and roles, seeds the seller, and creates an escrow-bound hold. | **Complete on testnet** | [issuance][loc-ats-issue], [hold][loc-ats-hold] |
 | Deploy and demonstrate on Hedera testnet | The security, clearing escrow, parties, and restricted HCS topic are deployed on testnet; public links are below. | **Complete on testnet** | [escrow][loc-escrow] |
-| Public repo and verified contracts where applicable | Contract source is included and Sourcify exactly matches both creation and runtime bytecode. | **Source verified;** public switch pending | [contract source][loc-escrow] |
+| Public repo and verified contracts where applicable | Contract source is public and Sourcify exactly matches both creation and runtime bytecode. | **Complete** | [contract source][loc-escrow] |
 | Show issuance, configuration, and a lifecycle operation | The approved lifecycle executes the ATS hold after a paid verdict; the caretaker verifies the exact seller/buyer balance delta. | **Complete:** hold `2` executed; buyer gained exactly `1.0` unit | [finality assertions][loc-caretaker-finality], [public projection][loc-public-proof] |
 
 This is a secondary-market clearing use case, not a decorative token. ATS supplies issuance,
@@ -97,7 +108,7 @@ execution for an exact off-exchange transfer.
 | Compose products or build on a standardized schema | One Messari Lending v3.1 query spans Aave, Compound, Morpho, and Spark across six pinned deployments; Gateway reads compose with Subgraph MCP schema, discovery, and query-count calls. | **Complete; live-validated** | [catalog][loc-graph-catalog], [evaluator][loc-graph-evaluator] |
 | Consume live provider data; no mock/static dataset | The evaluator calls The Graph Gateway and live Subgraph MCP at request time, validates deployment metadata, and fails closed. | **Complete; live-validated** | [live evaluator][loc-graph-evaluator], [MCP transport][loc-graph-mcp] |
 | Make standards leverage clear | One policy checks schema compatibility, indexing health, freshness, and market values without protocol-specific query branches. | **Complete** | [shared decision][loc-graph-decision] |
-| Public repo and two-to-four-minute demo | Source and the runnable path are documented here; the video will show live block metadata in the paid clearing run. | **Pending:** public switch and video | [MCP tool][loc-desk-mcp] |
+| Public repo and two-to-four-minute demo | Public source, live services, and the runnable path are documented here; the presentation follows the completed paid clearing run. | **Implementation complete;** recording is a submission artifact | [MCP tool][loc-desk-mcp], [guided dashboard][loc-guided-flow] |
 
 ### The Graph — Best AI Tooling or AI Use Case (From Scratch)
 
@@ -106,7 +117,7 @@ execution for an exact off-exchange transfer.
 | The Graph is load-bearing | No Graph evidence means no signed verdict and therefore no escrow settlement. | **Complete** | [service boundary][loc-service-boundary] |
 | Do meaningful work with live data | The service derives five checks and an APPROVE/DENY action instead of printing raw rows. | **Complete; live-validated** | [decision][loc-graph-decision] |
 | Reusable tooling | `get_conformance_verdict` exposes the paid, signature-verifying flow as an MCP tool with a strict trade schema. | **Complete** | [MCP server][loc-desk-mcp] |
-| Open source and correct pool | This project was built from scratch for ETHOnline 2026. Setup and verification are below. | **Pending:** public switch and video | This document |
+| Open source and correct pool | This public project was built from scratch for ETHOnline 2026. Setup and verification are below. | **Complete** | This document |
 
 ### Privy — Best Financial Flow
 
@@ -114,7 +125,7 @@ execution for an exact off-exchange transfer.
 | --- | --- | --- | --- |
 | Privy is core and at least one wallet is used | The buyer is a Privy Ethereum server wallet paired to a Hedera ECDSA account; its payment key is never exported into the app. | **Complete; live raw-sign validated** | [wallet client][loc-privy-client] |
 | Functional flow using a generally available feature | Privy's wallet RPC signs each Hedera transaction-body hash used by the x402 USDC transfer. | **Complete:** funded payment settled from the Privy-controlled account | [Hedera signer][loc-privy-signer], [caretaker selection][loc-caretaker-pay] |
-| Working demo and source | The caretaker performs payment, decision, ATS settlement, and audit anchoring. | **Flow complete;** public switch and video remain | [end-to-end caretaker][loc-caretaker-finality], [guided dashboard][loc-guided-flow] |
+| Working demo and source | The public caretaker performs payment, decision, ATS settlement, and audit anchoring; the live dashboard presents its confirmed result. | **Implementation complete;** recording is a submission artifact | [end-to-end caretaker][loc-caretaker-finality], [guided dashboard][loc-guided-flow] |
 | Explain Privy's UX improvement | The agent pays from a managed wallet without exposing the Privy payment key, while local limits remain enforced. | **Complete** | [bounded policy][loc-x402-buyer] |
 
 ## Live testnet resources
@@ -136,7 +147,7 @@ contract event, Mirror finality, and consumed ATS hold.
 
 ## Run locally
 
-Requirements: Node.js 22+, npm 10+, and Foundry.
+Requirements: Node.js 22.x, npm 10+, and Foundry.
 
 ```bash
 npm ci --ignore-scripts
@@ -152,7 +163,7 @@ Start the API and visual dashboard in separate shells:
 
 ```bash
 npm run start:service
-npm run dev --workspace @desk/web
+npm run dev --workspace @conformance-desk/web
 ```
 
 Every mutation is dry-run-first. Inspect the JSON before adding `--execute`:
@@ -219,14 +230,16 @@ Follow [`docs/E2E.md`](docs/E2E.md) for the evidence checklist, recovery rules, 
 
 ## Verification status
 
-The code passes the Node/UI and Foundry suites plus all workspace builds. The funded testnet run paid
+The code passes the Node/UI and Foundry suites plus all workspace builds. The repository is public,
+the API is deployed on Cloud Run, and the dashboard is deployed on Render. The funded testnet run paid
 `0.01` canonical USDC from the Privy-controlled buyer, evaluated six live Graph deployments, executed
 the exact ATS hold, reached Mirror finality, anchored HCS sequence `1`, and passed all 11 independent
-replay checks. The local seller API and Vite proxy both return that same sanitized durable state.
+replay checks. The deployed API, local seller API, and Vite proxy return that same sanitized durable
+state. CORS permits the Render site and the two documented local Vite origins.
 
-Remaining presentation work is operational: make the repository public and record the final uncut
-demo. A fresh visual browser-console pass is also required before recording; unit/UI tests do not
-substitute for that check.
+The remaining submission artifact is the final uncut demo recording. Run the visual and browser-console
+checks in [`docs/E2E.md`](docs/E2E.md) immediately before recording; unit/UI tests do not substitute
+for that pass.
 
 Primary references: [Hedera ATS](https://docs.hedera.com/solutions/tokenization/ats),
 [Hedera x402](https://docs.hedera.com/solutions/ai/x402),

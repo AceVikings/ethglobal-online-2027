@@ -7,11 +7,13 @@ bill for an idle always-on process under request-based billing.
 
 ## Frontend: Render Static Site
 
-The repository's `render.yaml` defines the static site. Connect this repository
-in Render. Render builds `packages/web`, proxies `/api/*` to Cloud Run, and
-rewrites all remaining application routes to `index.html`. The browser therefore
-uses a same-origin API path and does not need a public build-time environment
-variable.
+The repository's `render.yaml` defines the preferred static site. Connect this repository
+in Render. Render builds `packages/web`, proxies `/api/*` to Cloud Run, and rewrites all
+remaining application routes to `index.html`. The browser therefore uses a same-origin API path
+and does not need a public build-time environment variable. A manually configured Static Site may
+instead set `VITE_API_BASE_URL` to the public Cloud Run URL; this value is not a secret.
+
+Production dashboard: <https://ethglobal-online-2027.onrender.com>
 
 ## API: Google Cloud Run
 
@@ -21,7 +23,7 @@ OIDC and Workload Identity Federation; there is no long-lived Google service
 account key in GitHub.
 
 The service uses one vCPU, 512 MiB memory, zero minimum instances, and a maximum
-of two instances. Its `/data` mount is a read-only Cloud Storage bucket holding
+of one instance. Its `/data` mount is a read-only Cloud Storage bucket holding
 the completed, chain-confirmed caretaker state.
 
 Repository variables required by the workflow are:
@@ -34,10 +36,11 @@ GCP_ARTIFACT_REPOSITORY=conformance-desk
 GCP_STATE_BUCKET=ethonline-476311-conformance-desk-state
 GCP_RUNTIME_SERVICE_ACCOUNT=conformance-desk-runtime@ethonline-476311.iam.gserviceaccount.com
 GCP_DEPLOY_SERVICE_ACCOUNT=github-conformance-deploy@ethonline-476311.iam.gserviceaccount.com
-GCP_WORKLOAD_IDENTITY_PROVIDER=projects/<number>/locations/global/workloadIdentityPools/github/providers/ethglobal-online-2027
+GCP_WORKLOAD_IDENTITY_PROVIDER=projects/<number>/locations/global/workloadIdentityPools/github-actions/providers/ethglobal-online-2027
 X402_PAY_TO=0.0.<seller>
 ATS_SECURITY_ID=0.0.<security>
 HCS_TOPIC_ID=0.0.<topic>
+CORS_ALLOWED_ORIGIN=https://your-frontend.onrender.com,http://localhost:5173,http://127.0.0.1:5173
 ```
 
 `graph-studio-key` and `verdict-signer-key` live in Google Secret Manager and
@@ -50,6 +53,8 @@ worker. For the hackathon demo, run the real caretaker flow and upload its
 completed state file to the bucket. A continuously autonomous production system
 should use durable transactional storage and invoke the caretaker through an
 authenticated Cloud Run Job or task queue.
+
+Production API: <https://conformance-desk-api-4p35sr23vq-uc.a.run.app>
 
 ## Publication
 
