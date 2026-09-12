@@ -13,5 +13,8 @@
     "dry-run:caretaker": "node scripts/run-caretaker.cjs",
     "dry-run:sweep": "node scripts/sweep.cjs",
     "build": "npm run build --workspaces --if-present"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
   }
 }
