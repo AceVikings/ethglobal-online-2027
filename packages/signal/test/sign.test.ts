@@ -14,7 +14,7 @@ import {
 } from '../src/sign.ts'
 import type { ClearingAuthorization, VerdictPayload } from '../src/types.ts'
 
-const PRIVATE_KEY = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8417f4603b6b78690d'
+const PRIVATE_KEY = Wallet.createRandom().privateKey
 
 function payload(): VerdictPayload {
   return {
