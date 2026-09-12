@@ -19,7 +19,7 @@ const proofSteps = [
   { icon: CircleDollarSign, eyebrow: "X402 PAYMENT", title: "The agent buys one decision.", copy: "The bounded buyer validates Hedera testnet terms and settles the quoted price through Blocky402." },
   { icon: Braces, eyebrow: "LIVE EVIDENCE", title: "Deterministic checks decide.", copy: "Verified Graph deployments produce derived evidence. Raw provider rows and credentials stay inside the service." },
   { icon: Bot, eyebrow: "AI EXPLANATION", title: "DeepSeek explains—not decides.", copy: "The model summarizes the fixed result and has no signing key, custody, issuer role, or power to override policy." },
-  { icon: ScrollText, eyebrow: "FINALITY + AUDIT", title: "Execute or release exactly once.", copy: "The contract consumes the bound verdict, changes the ATS hold, then emits matching contract and HCS evidence." },
+  { icon: ScrollText, eyebrow: "FINALITY + AUDIT", title: "Execute or release exactly once.", copy: "The contract consumes the bound verdict, changes the ATS hold, emits contract evidence, then attempts an HCS audit anchor." },
 ];
 
 const proofGridClasses = [
@@ -96,7 +96,7 @@ export function HomePage() {
             </div>
           ) : desk.status === "error" ? (
             <div className="border border-refusal/50 bg-surface p-6 md:p-8">
-              <p className="eyebrow text-refusal">BACKEND UNAVAILABLE</p>
+              <p className="eyebrow text-refusal-copy">BACKEND UNAVAILABLE</p>
               <h3 className="mt-4 text-2xl font-medium text-primary-copy">Live trade state could not be confirmed.</h3>
               <p className="mt-3 max-w-xl text-sm leading-6 text-secondary-copy">No fixture trades are shown in place of the API. Start the clearing service or check the configured API base URL, then retry.</p>
               <button type="button" onClick={() => setReloadKey((value) => value + 1)} className="mt-6 inline-flex min-h-11 items-center bg-action px-5 font-medium text-white focus-visible:ring-2 focus-visible:ring-active focus-visible:ring-offset-2">Retry connection</button>
