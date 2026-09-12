@@ -11,7 +11,9 @@ The repository's `render.yaml` defines the preferred static site. Connect this r
 in Render. Render builds `packages/web`, proxies `/api/*` to Cloud Run, and rewrites all
 remaining application routes to `index.html`. The browser therefore uses a same-origin API path
 and does not need a public build-time environment variable. A manually configured Static Site may
-instead set `VITE_API_BASE_URL` to the public Cloud Run URL; this value is not a secret.
+instead set `VITE_API_BASE_URL` to the public Cloud Run URL; this value is not a secret. Production
+builds also default to the deployed Cloud Run API when the variable is absent, while Vite development
+continues to use its local `/api` proxy.
 
 Production dashboard: <https://ethglobal-online-2027.onrender.com>
 

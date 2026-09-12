@@ -138,7 +138,10 @@ export type TradeListResponse = {
   nextCursor: string | null;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+const PRODUCTION_API_BASE = "https://conformance-desk-api-4p35sr23vq-uc.a.run.app";
+const API_BASE = (
+  import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.PROD ? PRODUCTION_API_BASE : "")
+).replace(/\/$/, "");
 
 async function readJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
