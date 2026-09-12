@@ -2,33 +2,34 @@
 
 _Status: active_
 
-Conformance Desk is a dark, developer-centric verification interface. It should feel like a credible middle-office tool: dense where the data matters, restrained everywhere else, and explicit about both approvals and refusals.
+Conformance Desk uses a minimalist editorial system: cinematic and spacious at the entry point, then precise and information-dense where evidence matters. The experience should feel calm, high-end, and exact about both approvals and refusals.
 
 ## Palette
 
-- Canvas: `#000000`
-- Raised surface: `#0a0a0a`
-- Chip surface: `#1f1f1f`
-- Primary text: `#ededed`
-- Secondary text: `#999999`
-- Active accent: `#52a8ff`
-- Success: `#62c073`
+- Canvas: `#f6f4ef`
+- Raised surface: `#ffffff`
+- Loading fallback: `hsl(201, 100%, 13%)`
+- Primary text: `#0f172a`
+- Secondary text: `hsl(215, 25%, 32%)`
+- Primary action: `#000000` with `#ffffff` text
+- Success: `#26734d`
 - Refusal: `#ff5c5c`
-- Hairline: `rgba(255, 255, 255, 0.145)`
+- Hairline: `rgba(15, 23, 42, 0.16)`
 
 ## Typography
 
-- Headlines and editorial copy: Inter, medium weight, tight tracking.
+- Headlines: Instrument Serif, regular weight, tightly tracked.
+- Body and interface controls: Inter, regular to medium weight.
 - Identifiers, timestamps, metrics, and table rows: Geist Mono.
 - Use tabular numerals for values that need to align.
 
 ## Shape and interaction
 
-- Primary buttons are square: zero border radius.
+- Primary buttons are black, fully rounded pills with subtle hover scale.
 - Status chips are pills: fully rounded.
 - Cards use a one-pixel hairline border and no decorative shadow.
-- Focus uses a visible blue ring.
-- Blue marks active selection. Green marks a conformant result. Red is reserved for refusals.
+- Focus uses a visible navy ring. Green marks a conformant result. Red is reserved for refusals.
+- Hero content enters with an 800ms fade-and-rise sequence, staggered by 200ms and disabled for reduced-motion users.
 
 ## Voice
 

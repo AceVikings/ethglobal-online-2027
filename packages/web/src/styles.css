@@ -2,19 +2,21 @@
 
 @theme {
   --font-sans: "Inter Variable", sans-serif;
+  --font-display: "Instrument Serif", serif;
   --font-mono: "Geist Mono Variable", monospace;
-  --color-canvas: #000000;
-  --color-surface: #0a0a0a;
-  --color-chip: #1f1f1f;
-  --color-primary-copy: #ededed;
-  --color-secondary-copy: #c2c2c2;
-  --color-muted-copy: #999999;
-  --color-button-copy: #121212;
-  --color-active: #52a8ff;
-  --color-success: #62c073;
+  --color-canvas: #f6f4ef;
+  --color-surface: #ffffff;
+  --color-chip: #e8ebef;
+  --color-primary-copy: #0f172a;
+  --color-secondary-copy: hsl(215 25% 32%);
+  --color-muted-copy: #64748b;
+  --color-button-copy: #ffffff;
+  --color-action: #000000;
+  --color-active: #0f172a;
+  --color-success: #26734d;
   --color-refusal: #ff5c5c;
-  --color-hairline: rgba(255, 255, 255, 0.145);
-  --color-timeline: rgba(255, 255, 255, 0.18);
+  --color-hairline: rgba(15, 23, 42, 0.16);
+  --color-timeline: rgba(15, 23, 42, 0.2);
 }
 
 :root {
@@ -37,11 +39,6 @@ body {
   background: var(--color-canvas);
 }
 
-button,
-a {
-  border-radius: 0;
-}
-
 button {
   cursor: pointer;
 }
@@ -53,21 +50,40 @@ button {
   color: var(--color-muted-copy);
 }
 
-.hero-grid {
-  background-image:
-    linear-gradient(to top, rgba(0, 0, 0, 0.76) 0%, rgba(0, 0, 0, 0) 93.785%),
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: auto, 72px 72px, 72px 72px;
+.hero-cinematic {
+  background: hsl(201 100% 13%);
 }
 
-.hero-glow {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+.hero-overlay {
   background:
-    radial-gradient(circle at 78% 35%, rgba(82, 168, 255, 0.22), transparent 28%),
-    radial-gradient(circle at 18% 70%, rgba(98, 192, 115, 0.08), transparent 25%);
+    linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0) 56%);
+}
+
+.fade-rise {
+  animation: fade-rise 0.8s ease-out both;
+  animation-delay: var(--entrance-delay, 0ms);
+}
+
+.pill-action {
+  border-radius: 9999px;
+  transition: transform 200ms ease-in-out;
+}
+
+.pill-action:hover {
+  transform: scale(1.03);
+}
+
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 ::selection {

@@ -1,3 +1,4 @@
+import "@fontsource/instrument-serif";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/geist-mono";
 import { StrictMode } from "react";
