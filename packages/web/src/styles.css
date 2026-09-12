@@ -55,9 +55,30 @@ button {
 }
 
 .hero-overlay {
+  z-index: 2;
+  pointer-events: none;
   background:
-    linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)),
-    radial-gradient(circle at center, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0) 56%);
+    linear-gradient(to bottom, rgba(246, 244, 239, 0.08), rgba(246, 244, 239, 0.02) 58%, rgba(15, 23, 42, 0.08)),
+    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0) 52%);
+}
+
+.hero-still-layer {
+  z-index: 0;
+  opacity: 1;
+}
+
+.hero-motion-layer {
+  z-index: 1;
+  opacity: 0;
+  will-change: opacity;
+  animation: hero-media-dissolve 12s ease-in-out infinite;
+  -webkit-mask-image: radial-gradient(circle at 50% 58%, transparent 0 31%, #000000 58%);
+  mask-image: radial-gradient(circle at 50% 58%, transparent 0 31%, #000000 58%);
+}
+
+.hero-content {
+  z-index: 10;
+  transform: translateY(clamp(-11rem, -14vh, -8rem));
 }
 
 .fade-rise {
@@ -86,6 +107,20 @@ button {
   }
 }
 
+@keyframes hero-media-dissolve {
+  0%, 10%, 100% {
+    opacity: 0;
+  }
+
+  36%, 70% {
+    opacity: 0.62;
+  }
+
+  90% {
+    opacity: 0.08;
+  }
+}
+
 ::selection {
   color: var(--color-button-copy);
   background: var(--color-active);
@@ -102,5 +137,15 @@ button {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .hero-motion-layer {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .hero-content {
+    transform: translateY(-5.5rem);
   }
 }
