@@ -74,13 +74,15 @@ export function createVerdictServer(options: ServiceOptions) {
   }
   const completed = new Map<string, CompletedResponse>()
   const inFlight = new Map<string, Promise<AttemptResult>>()
-  let allowedOrigin: string | null = null
+  const allowedOrigins = new Set<string>()
   if (options.corsAllowedOrigin) {
-    const parsed = new URL(options.corsAllowedOrigin)
-    if (!['https:', 'http:'].includes(parsed.protocol) || parsed.origin !== options.corsAllowedOrigin) {
-      throw new Error('corsAllowedOrigin must be an exact HTTP(S) origin')
+    for (const configuredOrigin of options.corsAllowedOrigin.split(',').map((origin) => origin.trim())) {
+      const parsed = new URL(configuredOrigin)
+      if (!['https:', 'http:'].includes(parsed.protocol) || parsed.origin !== configuredOrigin) {
+        throw new Error('corsAllowedOrigin must contain exact HTTP(S) origins')
+      }
+      allowedOrigins.add(parsed.origin)
     }
-    allowedOrigin = parsed.origin
   }
 
   async function produce(request: IncomingMessage, input: VerdictRequest, fingerprint: string): Promise<AttemptResult> {
@@ -148,11 +150,12 @@ export function createVerdictServer(options: ServiceOptions) {
   return createHttpServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost')
     const requestOrigin = request.headers.origin
-    if (allowedOrigin && requestOrigin === allowedOrigin) {
+    const allowedOrigin = requestOrigin && allowedOrigins.has(requestOrigin) ? requestOrigin : null
+    if (allowedOrigin) {
       response.setHeader('access-control-allow-origin', allowedOrigin)
       response.setHeader('vary', 'Origin')
     }
-    if (request.method === 'OPTIONS' && url.pathname.startsWith('/api/') && requestOrigin === allowedOrigin) {
+    if (request.method === 'OPTIONS' && url.pathname.startsWith('/api/') && allowedOrigin) {
       response.writeHead(204, {
         'access-control-allow-origin': allowedOrigin,
         'access-control-allow-methods': 'GET',

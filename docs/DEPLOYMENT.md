@@ -38,6 +38,7 @@ GCP_WORKLOAD_IDENTITY_PROVIDER=projects/<number>/locations/global/workloadIdenti
 X402_PAY_TO=0.0.<seller>
 ATS_SECURITY_ID=0.0.<security>
 HCS_TOPIC_ID=0.0.<topic>
+CORS_ALLOWED_ORIGIN=https://your-frontend.onrender.com,http://localhost:5173,http://127.0.0.1:5173
 ```
 
 `graph-studio-key` and `verdict-signer-key` live in Google Secret Manager and
