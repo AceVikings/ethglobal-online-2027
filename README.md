@@ -9,23 +9,53 @@ HCS topic, and Mirror Node replay are the demo surface.
 
 ## Architecture
 
-```text
-caretaker / CLI / MCP
-        |
-        | 402 -> Hedera exact payment -> retry
-        v
-seller service (Graph key + verdict key)
-        |
-        +-- Graph Gateway: six pinned Messari deployments
-        +-- Subgraph MCP: discovery, schemas, queries, volume provenance
-        +-- five checks -> signed derived verdict (never raw rows)
-        |
-        v
-CONFORMANT -> ATS unblock -> transfer
-other       -> no unblock -> native token refusal
-        |
-        +-- HCS decision message
-        +-- ConformanceGate signature-checked event
+```mermaid
+flowchart TD
+    subgraph Consumers["Consumers — no Graph credentials"]
+        Caretaker["Caretaker agent<br/>Hedera key"]
+        CLI["CLI"]
+        MCPConsumer["MCP consumer"]
+    end
+
+    Seller["Seller service<br/>Graph key + verdict key"]
+    Blocky["Blocky402 facilitator<br/>Hedera exact · USDC"]
+
+    subgraph GraphPlane["The Graph data plane"]
+        Gateway["Graph Gateway<br/>six pinned Messari deployments"]
+        GraphMCP["Subgraph MCP<br/>discovery · schemas · queries · volume"]
+        Checks["Five conformance checks"]
+    end
+
+    Signed["Signed derived verdict<br/>no raw Graph rows"]
+    Decision{"Verdict is<br/>CONFORMANT?"}
+    Execute["Remove recipient from ATS block list<br/>then execute transfer"]
+    Refuse["Leave recipient blocked<br/>do not construct transfer"]
+
+    subgraph Audit["Post-operation audit anchors"]
+        HCS["HCS decision message"]
+        Gate["ConformanceGate<br/>signature-checked event"]
+    end
+
+    Caretaker -->|"request"| Seller
+    CLI -->|"request"| Seller
+    MCPConsumer -->|"request"| Seller
+    Seller -->|"402 Payment Required"| Caretaker
+    Caretaker -->|"signed payment"| Blocky
+    Blocky -->|"verified payment"| Seller
+    Seller --> Gateway
+    Seller --> GraphMCP
+    Gateway --> Checks
+    GraphMCP --> Checks
+    Checks --> Signed
+    Signed --> Seller
+    Seller -->|"settle, then return verdict"| Caretaker
+    Caretaker --> Decision
+    Decision -->|"yes"| Execute
+    Decision -->|"no"| Refuse
+    Execute --> HCS
+    Execute --> Gate
+    Refuse --> HCS
+    Refuse --> Gate
 ```
 
 The seller and buyer are separate processes and hold different credentials. `packages/service`
