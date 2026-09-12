@@ -1,74 +1,97 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { decisions, getDecision } from "../data/decisions";
+import { fetchTradeEvents, shortId, type Trade, type TradeEvent } from "../api/trades";
 import { StatusChip } from "./StatusChip";
 
-export function EventStream() {
-  const [selectedId, setSelectedId] = useState(decisions[0].id);
-  const selected = getDecision(selectedId) ?? decisions[0];
+type EventState =
+  | { status: "idle" | "loading"; events: TradeEvent[] }
+  | { status: "ready"; events: TradeEvent[] }
+  | { status: "error"; events: TradeEvent[] };
+
+export function EventStream({ trades }: { trades: Trade[] }) {
+  const [selectedDigest, setSelectedDigest] = useState(trades[0]?.tradeDigest ?? "");
+  const [eventState, setEventState] = useState<EventState>({ status: "idle", events: [] });
+  const selected = trades.find((trade) => trade.tradeDigest === selectedDigest) ?? trades[0];
+
+  useEffect(() => {
+    if (!selected) return;
+    const controller = new AbortController();
+    setEventState({ status: "loading", events: [] });
+    fetchTradeEvents(selected.tradeDigest, controller.signal)
+      .then((events) => setEventState({ status: "ready", events }))
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setEventState({ status: "error", events: [] });
+      });
+    return () => controller.abort();
+  }, [selected]);
+
+  if (!selected) return null;
 
   return (
-    <section id="stream" className="scroll-mt-24 border-y border-hairline bg-surface py-20 md:py-28">
+    <section id="activity" className="scroll-mt-24 border-y border-hairline bg-surface py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-4 md:px-8 lg:px-14">
         <div className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
-            <p className="eyebrow">EVENT STREAM</p>
+            <p className="eyebrow">CLEARING ACTIVITY</p>
             <h2 className="mt-4 max-w-2xl text-3xl font-medium tracking-tight text-primary-copy md:text-5xl">
-              Every decision leaves a readable trail.
+              One held trade. Every confirmed step.
             </h2>
           </div>
-          <div className="flex items-center gap-2">
-            <StatusChip status="PREVIEW" />
-            <span className="font-mono text-xs text-muted-copy">STATIC DATA · API PENDING</span>
-          </div>
+          <StatusChip status="LIVE" />
         </div>
 
         <div className="border border-hairline bg-canvas">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-4 py-3 font-mono text-xs md:px-5">
-            <span className="text-primary-copy">TRACE / {selected.signalHash}</span>
-            <span className="rounded-full bg-chip px-2.5 py-1 text-muted-copy">{selected.durationMs} MS</span>
+            <span className="text-primary-copy">TRADE / {shortId(selected.tradeDigest)}</span>
+            <span className="rounded-full bg-chip px-2.5 py-1 text-muted-copy">{selected.hold.holdId}</span>
           </div>
-          <div className="grid lg:grid-cols-[240px_1fr]">
+          <div className="grid lg:grid-cols-[280px_1fr]">
             <div className="border-b border-hairline lg:border-b-0 lg:border-r">
-              {decisions.map((decision) => (
+              {trades.map((trade) => (
                 <button
-                  key={decision.id}
+                  key={trade.tradeDigest}
                   type="button"
-                  onClick={() => setSelectedId(decision.id)}
+                  onClick={() => setSelectedDigest(trade.tradeDigest)}
                   className={`flex min-h-16 w-full items-center gap-3 border-b border-hairline px-4 text-left font-mono text-xs transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-active ${
-                    selected.id === decision.id ? "bg-chip text-primary-copy" : "text-muted-copy hover:bg-chip/60"
+                    selected.tradeDigest === trade.tradeDigest ? "bg-chip text-primary-copy" : "text-muted-copy hover:bg-chip/60"
                   }`}
                 >
-                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${decision.verdict === "CONFORMANT" ? "bg-success" : "bg-refusal"}`} aria-hidden="true" />
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${trade.state === "EXECUTED" ? "bg-success" : ["DENIED", "RELEASED", "EXPIRED", "FAILED"].includes(trade.state) ? "bg-refusal" : "bg-active"}`} aria-hidden="true" />
                   <span>
-                    <span className="block">{decision.sequence}</span>
-                    <span className="mt-1 block text-secondary-copy">{decision.issuedAt}</span>
+                    <span className="block">{trade.sequence}</span>
+                    <span className="mt-1 block text-secondary-copy">{trade.instrument.symbol} · {trade.hold.units} units</span>
                   </span>
                 </button>
               ))}
             </div>
 
-            <div className="overflow-x-auto">
-              <div className="min-w-[640px]">
-                <div className="grid grid-cols-[1fr_2fr_100px] gap-6 border-b border-hairline px-5 py-3 font-mono text-xs text-muted-copy">
-                  <span>SPAN</span><span>START</span><span className="text-right">DURATION</span>
+            <div className="min-h-72 p-5 md:p-6">
+              {eventState.status === "loading" || eventState.status === "idle" ? (
+                <div aria-label="Loading trade activity" className="space-y-3">
+                  {[0, 1, 2, 3].map((item) => <div key={item} className="h-14 animate-pulse bg-chip motion-reduce:animate-none" />)}
                 </div>
-                {selected.spans.map((span) => (
-                  <div key={span.label} className="grid min-h-16 grid-cols-[1fr_2fr_100px] items-center gap-6 border-b border-hairline px-5 font-mono text-xs last:border-b-0">
-                    <span className={span.active ? "text-active" : "text-primary-copy"}>{span.label}</span>
-                    <div className="relative h-1.5 w-full bg-chip" aria-label={`${span.label} timeline position`}>
-                      <span
-                        className={`absolute inset-y-0 ${span.active ? "bg-active" : "bg-timeline"}`}
-                        style={{
-                          left: `${(span.startMs / selected.durationMs) * 100}%`,
-                          width: `${(span.durationMs / selected.durationMs) * 100}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-right text-muted-copy">{span.durationMs} ms</span>
-                  </div>
-                ))}
-              </div>
+              ) : eventState.status === "error" ? (
+                <div className="flex min-h-56 flex-col justify-center border border-hairline p-6">
+                  <p className="text-lg font-medium text-primary-copy">Activity unavailable</p>
+                  <p className="mt-2 max-w-md text-sm leading-6 text-secondary-copy">The trade summary loaded, but its lifecycle events could not be confirmed. Refresh to retry.</p>
+                </div>
+              ) : eventState.events.length === 0 ? (
+                <div className="flex min-h-56 flex-col justify-center border border-hairline p-6">
+                  <p className="text-lg font-medium text-primary-copy">No confirmed events yet</p>
+                  <p className="mt-2 text-sm text-secondary-copy">This hold is waiting for its first backend-confirmed lifecycle event.</p>
+                </div>
+              ) : (
+                <ol className="relative space-y-0 before:absolute before:bottom-5 before:left-[7px] before:top-5 before:w-px before:bg-hairline">
+                  {eventState.events.map((event) => (
+                    <li key={event.id} className="relative grid grid-cols-[16px_1fr_auto] gap-4 border-b border-hairline py-4 font-mono text-xs last:border-b-0">
+                      <span className="relative z-10 mt-1 h-3.5 w-3.5 rounded-full border-4 border-canvas bg-active" aria-hidden="true" />
+                      <span><span className="block text-primary-copy">{event.type.replaceAll("_", " ")}</span><span className="mt-1 block leading-5 text-muted-copy">{event.publicDetail}</span></span>
+                      <time className="text-muted-copy" dateTime={event.occurredAt}>{new Date(event.occurredAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
           </div>
         </div>

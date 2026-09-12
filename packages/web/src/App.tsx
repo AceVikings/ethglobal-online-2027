@@ -10,7 +10,7 @@ export default function App() {
       <AppHeader />
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/decisions/:id" element={<DecisionPage />} />
+        <Route path="/trades/:tradeDigest" element={<DecisionPage />} />
         <Route path="*" element={<DecisionPage />} />
       </Routes>
     </BrowserRouter>

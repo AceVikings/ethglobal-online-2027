@@ -4,9 +4,9 @@ import { Link, useLocation } from "react-router-dom";
 
 const navItems = [
   { label: "Overview", href: "/" },
-  { label: "Desk", href: "/#desk" },
-  { label: "Stream", href: "/#stream" },
-  { label: "Coverage", href: "/#coverage" },
+  { label: "Trades", href: "/#desk" },
+  { label: "Activity", href: "/#activity" },
+  { label: "Proof", href: "/#proof" },
 ];
 
 export function AppHeader() {
@@ -29,9 +29,9 @@ export function AppHeader() {
         <Link
           to="/"
           className="inline-flex min-h-10 items-center font-display text-[30px] leading-none tracking-[-1px] text-primary-copy focus-visible:ring-2 focus-visible:ring-active"
-          aria-label="Conformance Desk home"
+          aria-label="AI Clearing Desk home"
         >
-          Conformance<sup className="ml-0.5 self-start font-sans text-[9px] font-medium leading-none">®</sup>
+          Clearing<sup className="ml-1 self-start font-sans text-[9px] font-medium leading-none">AI</sup>
         </Link>
 
         <nav className="hidden items-center justify-center gap-10 md:flex" aria-label="Primary navigation">
@@ -50,7 +50,7 @@ export function AppHeader() {
           href="/#desk"
           className="pill-action hidden min-h-10 items-center justify-self-end gap-2 bg-action px-6 text-sm font-medium text-white focus-visible:ring-2 focus-visible:ring-active focus-visible:ring-offset-2 focus-visible:ring-offset-canvas md:inline-flex"
         >
-          Find my decision
+          View clearing desk
           <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
         </a>
 
@@ -81,7 +81,7 @@ export function AppHeader() {
             ))}
           </nav>
           <a href="/#desk" className="pill-action inline-flex min-h-12 items-center justify-between bg-action px-6 font-medium text-white focus-visible:ring-2 focus-visible:ring-active">
-            Find my decision <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+            View clearing desk <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
           </a>
         </div>
       ) : null}

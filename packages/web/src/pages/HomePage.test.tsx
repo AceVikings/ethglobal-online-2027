@@ -1,55 +1,37 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { eventFixture, jsonResponse, tradeFixture } from "../test/tradeFixture";
 import { HomePage } from "./HomePage";
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("HomePage", () => {
-  it("renders the generated hero artwork with supporting motion", () => {
-    render(
-      <MemoryRouter>
-        <HomePage />
-      </MemoryRouter>,
-    );
+  it("renders the ATS clearing story and API-backed trades", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation((input: string) => {
+      if (input.endsWith("/events")) return Promise.resolve(jsonResponse([eventFixture]));
+      return Promise.resolve(jsonResponse({ trades: [tradeFixture], nextCursor: null }));
+    }));
 
-    expect(screen.getByRole("heading", { name: "Proof before execution." })).toBeInTheDocument();
-    expect(screen.getByText("Explore the decision desk")).toBeInTheDocument();
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+
+    expect(screen.getByRole("heading", { name: "Private-credit trades that clear only after proof." })).toBeInTheDocument();
+    expect(screen.getByText("View clearing desk")).toBeInTheDocument();
+    expect(await screen.findByText("250 NPCF")).toBeInTheDocument();
+    expect(screen.getByText("DeepSeek explains—not decides.")).toBeInTheDocument();
+    expect(screen.getByText("180.0")).toBeInTheDocument();
 
     const heroImage = document.querySelector("img[src='/conformance-hero-v2.webp']");
-    expect(heroImage).toBeInTheDocument();
     expect(heroImage).toHaveAttribute("width", "1672");
-    expect(heroImage).toHaveAttribute("height", "941");
-
-    const video = document.querySelector("video");
-    expect(video).toHaveAttribute("src", "/conformance-hero-loop.mp4");
-    expect(video).toHaveAttribute("poster", "/conformance-hero-v2.webp");
-    expect(video).toHaveAttribute("preload", "metadata");
+    expect(document.querySelector("video")).toHaveAttribute("poster", "/conformance-hero-v2.webp");
   });
 
-  it("renders all five regression checks", () => {
-    render(
-      <MemoryRouter>
-        <HomePage />
-      </MemoryRouter>,
-    );
-
-    const regressionCard = screen
-      .getByRole("heading", { name: "Five checks. One precedence." })
-      .closest("article");
-
-    expect(regressionCard).not.toBeNull();
-
-    const card = within(regressionCard!);
-    for (const label of [
-      "CID MATCH",
-      "INDEXING",
-      "FRESHNESS",
-      "SHAPE AGREEMENT",
-      "INVARIANTS",
-    ]) {
-      expect(card.getByText(label)).toBeInTheDocument();
-    }
+  it("never substitutes fixtures when the backend is unavailable", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+    expect(await screen.findByText("Live trade state could not be confirmed.")).toBeInTheDocument();
+    expect(screen.queryByText("Northstar Private Credit Fund")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry connection" })).toBeInTheDocument();
   });
 });

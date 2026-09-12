@@ -147,6 +147,6 @@ button {
 
 @media (max-width: 767px) {
   .hero-content {
-    transform: translateY(-5.5rem);
+    transform: translateY(-8.5rem);
   }
 }
