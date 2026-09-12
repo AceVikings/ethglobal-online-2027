@@ -1,7 +1,7 @@
 import type { PaymentGate, PaymentGateModule } from './types.ts'
 import { createPaymentGate as createHederaPaymentGate } from './adapters/x402-hedera.ts'
 
-const REQUIRED = ['X402_FACILITATOR_URL', 'X402_PAY_TO', 'X402_PRICE'] as const
+const REQUIRED = ['X402_FACILITATOR_URL', 'X402_PAY_TO', 'X402_PRICE_USDC'] as const
 
 /**
  * Loads a real payment adapter. There is intentionally no production bypass:
@@ -24,6 +24,6 @@ export async function paymentGateFromEnv(env: NodeJS.ProcessEnv = process.env): 
     facilitatorUrl: env.X402_FACILITATOR_URL!,
     network: env.X402_NETWORK ?? 'hedera:testnet',
     payTo: env.X402_PAY_TO!,
-    price: env.X402_PRICE!,
+    price: env.X402_PRICE_USDC!.startsWith('$') ? env.X402_PRICE_USDC! : `$${env.X402_PRICE_USDC}`,
   })
 }

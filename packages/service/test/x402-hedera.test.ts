@@ -47,7 +47,7 @@ test('rejects non-testnet or insecure payment configuration', () => {
 test('the environment loader defaults to the concrete Hedera adapter', async () => {
   const gate = await paymentGateFromEnv({
     X402_FACILITATOR_URL: 'https://api.testnet.blocky402.com',
-    X402_NETWORK: 'hedera:testnet', X402_PAY_TO: '0.0.1234', X402_PRICE: '$0.01',
+    X402_NETWORK: 'hedera:testnet', X402_PAY_TO: '0.0.1234', X402_PRICE_USDC: '0.01',
   })
   assert.equal(typeof gate.authorize, 'function')
 })

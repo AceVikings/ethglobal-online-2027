@@ -13,9 +13,9 @@ test('constructs the Hedera v2 client and leaves non-402 responses untouched', a
   const paymentFetch = createPaymentFetch({
     baseFetch: baseFetch as typeof fetch,
     env: {
-      HEDERA_ACCOUNT_ID: '0.0.1001',
-      HEDERA_PRIVATE_KEY: Wallet.createRandom().privateKey,
-      X402_EXPECTED_PAY_TO: '0.0.2002',
+      HEDERA_OPERATOR_ID: '0.0.1001',
+      HEDERA_OPERATOR_KEY: Wallet.createRandom().privateKey,
+      X402_PAY_TO: '0.0.2002',
       X402_NETWORK: 'hedera:testnet',
       X402_MAX_PRICE: '$0.10',
     },
@@ -27,20 +27,20 @@ test('constructs the Hedera v2 client and leaves non-402 responses untouched', a
 
 test('fails closed without a pinned seller account or with the wrong network', () => {
   const base = {
-    HEDERA_ACCOUNT_ID: '0.0.1001',
-    HEDERA_PRIVATE_KEY: Wallet.createRandom().privateKey,
-    X402_EXPECTED_PAY_TO: '0.0.2002',
+    HEDERA_OPERATOR_ID: '0.0.1001',
+    HEDERA_OPERATOR_KEY: Wallet.createRandom().privateKey,
+    X402_PAY_TO: '0.0.2002',
   }
-  assert.throws(() => createPaymentFetch({ baseFetch: fetch, env: { ...base, X402_EXPECTED_PAY_TO: '' } }),
-    /X402_EXPECTED_PAY_TO is required/)
+  assert.throws(() => createPaymentFetch({ baseFetch: fetch, env: { ...base, X402_PAY_TO: '' } }),
+    /X402_PAY_TO is required/)
   assert.throws(() => createPaymentFetch({ baseFetch: fetch, env: { ...base, X402_NETWORK: 'hedera:mainnet' } }),
     /only hedera:testnet/)
 })
 
 test('the environment loader defaults to the concrete Hedera adapter', async () => {
   const paymentFetch = await paymentFetchFromEnv({
-    HEDERA_ACCOUNT_ID: '0.0.1001', HEDERA_PRIVATE_KEY: Wallet.createRandom().privateKey,
-    X402_EXPECTED_PAY_TO: '0.0.2002', X402_NETWORK: 'hedera:testnet', X402_MAX_PRICE: '$0.10',
+    HEDERA_OPERATOR_ID: '0.0.1001', HEDERA_OPERATOR_KEY: Wallet.createRandom().privateKey,
+    X402_PAY_TO: '0.0.2002', X402_NETWORK: 'hedera:testnet', X402_MAX_PRICE: '$0.10',
   })
   assert.equal(typeof paymentFetch, 'function')
 })

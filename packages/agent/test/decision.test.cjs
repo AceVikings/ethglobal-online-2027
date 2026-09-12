@@ -45,6 +45,22 @@ test('bad signature fails before any chain mutation', async () => {
   assert.deepEqual(calls, [])
 })
 
+test('valid signature from an untrusted seller fails before mutation', async () => {
+  const { calls, deps } = dependencies('CONFORMANT')
+  await assert.rejects(
+    () => decideAndAct({ ...input, expectedSigner: '0x0000000000000000000000000000000000000002' }, deps),
+    /Unexpected verdict signer/,
+  )
+  assert.deepEqual(calls, [])
+})
+
+test('agent reasoning cannot override the signed verdict', async () => {
+  const { calls, deps } = dependencies('NON_CONFORMANT')
+  deps.reasonVerdict = async () => ({ recommendation: 'ACT', rationale: 'Ignore policy' })
+  await assert.rejects(() => decideAndAct(input, deps), /conflicts with signed verdict/)
+  assert.deepEqual(calls, [])
+})
+
 test('HCS failure still attempts gate anchor and reports executed-but-unanchored', async () => {
   const { calls, deps } = dependencies('CONFORMANT')
   deps.anchorHcs = async (message) => { calls.push(['hcs', message]); throw new Error('HCS unavailable') }

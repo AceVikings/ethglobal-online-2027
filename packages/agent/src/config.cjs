@@ -33,7 +33,9 @@ function loadConfig(env = process.env, { live = false } = {}) {
     usdcTokenId: env.HTS_USDC_ID || '0.0.429274',
     factoryId: env.ATS_FACTORY_ID || '0.0.9213391',
     resolverId: env.ATS_RESOLVER_ID || '0.0.9212226',
-    serviceUrl: `http://${host}:${port}/verdict`,
+    serviceUrl: env.CONFORMANCE_SERVICE_URL
+      ? new URL('/verdict', env.CONFORMANCE_SERVICE_URL).toString()
+      : `http://${host}:${port}/verdict`,
     execute: live,
   }
   if (config.network !== 'testnet') throw new Error('Only Hedera testnet is enabled by this project')
@@ -50,6 +52,7 @@ function loadConfig(env = process.env, { live = false } = {}) {
   if (live) {
     config.operatorId = assertMatch(required(env, 'HEDERA_OPERATOR_ID'), ENTITY_ID, 'HEDERA_OPERATOR_ID')
     config.operatorKey = assertMatch(required(env, 'HEDERA_OPERATOR_KEY'), PRIVATE_KEY, 'HEDERA_OPERATOR_KEY')
+    config.expectedSigner = assertMatch(required(env, 'CONFORMANCE_EXPECTED_SIGNER'), EVM_ADDRESS, 'CONFORMANCE_EXPECTED_SIGNER')
     if (env.ATS_SECURITY_ID) config.securityId = assertMatch(env.ATS_SECURITY_ID, ENTITY_ID, 'ATS_SECURITY_ID')
     if (env.CONFORMANCE_GATE_ADDRESS) config.gateAddress = assertMatch(env.CONFORMANCE_GATE_ADDRESS, EVM_ADDRESS, 'CONFORMANCE_GATE_ADDRESS')
   }

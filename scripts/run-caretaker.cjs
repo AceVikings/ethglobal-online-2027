@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict'
 
-const { ENTITY_ID, EVM_ADDRESS, assertMatch, executeRequested, loadConfig, connectAts, createControlListAdapter, encodeTransfer, createPaidFetch, buyVerdict, submitHcsMessage, recordGate, decideAndAct, output, run, required } = require('./lib/common.cjs')
+const { ENTITY_ID, EVM_ADDRESS, assertMatch, executeRequested, loadConfig, connectAts, createControlListAdapter, encodeTransfer, createPaidFetch, buyVerdict, submitHcsMessage, recordGate, createAnthropicReasoner, decideAndAct, output, run, required } = require('./lib/common.cjs')
 
 run(async () => {
   const execute = executeRequested()
@@ -22,7 +22,7 @@ run(async () => {
     request.subject.deploymentId = required(process.env, 'DEPLOYMENT_ID')
     config.gateAddress = assertMatch(required(process.env, 'CONFORMANCE_GATE_ADDRESS'), EVM_ADDRESS, 'CONFORMANCE_GATE_ADDRESS')
   }
-  const preview = { request, recipientId: process.env.RECIPIENT_ID || '<RECIPIENT_ID>', operation: { ...operation, amount: operation.amount.toString(), calldata: encodeTransfer(operation) } }
+  const preview = { request, expectedSigner: process.env.CONFORMANCE_EXPECTED_SIGNER || '<CONFORMANCE_EXPECTED_SIGNER>', recipientId: process.env.RECIPIENT_ID || '<RECIPIENT_ID>', operation: { ...operation, amount: operation.amount.toString(), calldata: encodeTransfer(operation) } }
   if (!execute) return output({ mode: 'dry-run', serviceUrl: config.serviceUrl, x402Network: config.x402Network, flow: ['buy x402 verdict', 'verify signature', 'CONFORMANT: remove recipient from ATS block list', 'execute ATS transfer', 'attempt HCS and gate anchors independently'], preview })
   const { ats } = await connectAts(config)
   const expectedPayTo = assertMatch(required(process.env, 'X402_PAY_TO'), ENTITY_ID, 'X402_PAY_TO')
@@ -32,9 +32,14 @@ run(async () => {
     maxAmountPerPayment: `$${config.x402PriceUsd}`,
   })
   const signal = await import('../packages/signal/src/sign.ts')
-  const result = await decideAndAct({ request, recipientId, operation: { ...operation, calldata: preview.operation.calldata } }, {
+  const reasonVerdict = createAnthropicReasoner({
+    apiKey: required(process.env, 'ANTHROPIC_API_KEY'),
+    model: required(process.env, 'ANTHROPIC_MODEL'),
+  })
+  const result = await decideAndAct({ request, expectedSigner: config.expectedSigner, recipientId, operation: { ...operation, calldata: preview.operation.calldata } }, {
     buyVerdict: (body) => buyVerdict({ url: config.serviceUrl, body, paidFetch }),
     verifyVerdict: signal.verifyVerdict, signalHash: signal.signalHash, buildAnchor: signal.anchorDigest,
+    reasonVerdict,
     controlList: createControlListAdapter(ats, securityId),
     executeTransfer: (op) => ats.Security.transfer(new ats.TransferRequest({ securityId, targetId: recipientId, amount: op.amount.toString() })),
     anchorHcs: (message) => submitHcsMessage(config, topicId, message),

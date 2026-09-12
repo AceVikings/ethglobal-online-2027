@@ -26,10 +26,13 @@ test('config consumes canonical env names from .env.example and service', () => 
   assert.equal(config.usdcTokenId, '0.0.99')
   assert.equal(config.serviceUrl, 'http://localhost:4999/verdict')
 
+  const remote = loadConfig({ CONFORMANCE_SERVICE_URL: 'https://desk.example/api/' })
+  assert.equal(remote.serviceUrl, 'https://desk.example/verdict')
+
   const example = fs.readFileSync(path.resolve(__dirname, '../../../.env.example'), 'utf8')
   for (const name of ['HEDERA_JSON_RPC', 'HTS_USDC_ID', 'X402_NETWORK', 'X402_SCHEME', 'X402_FEE_PAYER', 'X402_PRICE_USDC']) assert.match(example, new RegExp(`^${name}=`, 'm'))
   const source = fs.readFileSync(path.resolve(__dirname, '../src/config.cjs'), 'utf8')
-  assert.doesNotMatch(source, /HEDERA_RPC_URL|HEDERA_USDC_TOKEN_ID|CONFORMANCE_SERVICE_URL/)
+  assert.doesNotMatch(source, /HEDERA_RPC_URL|HEDERA_USDC_TOKEN_ID/)
 })
 
 test('live config fails closed without credentials', () => {
