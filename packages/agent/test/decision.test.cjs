@@ -1,0 +1,108 @@
+'use strict'
+
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const { decideAndAct } = require('../src/decision.cjs')
+
+function dependencies(verdict) {
+  const calls = []
+  return { calls, deps: {
+    buyVerdict: async () => ({ verdict: { verdict, signature: '0xsig' }, paymentTxId: '0.0.1@1.2' }),
+    verifyVerdict: async () => ({ ok: true, recovered: '0x1' }),
+    signalHash: async () => `0x${'11'.repeat(32)}`,
+    controlList: {
+      unblock: async (id) => { calls.push(['unblock', id]); return { transactionId: 'unblock-tx' } },
+      block: async (id) => { calls.push(['block', id]); return { transactionId: 'block-tx' } },
+    },
+    executeTransfer: async (op) => { calls.push(['transfer', op]); return { transactionId: 'transfer-tx' } },
+    buildAnchor: async () => `0x${'22'.repeat(32)}`,
+    anchorHcs: async (message) => { calls.push(['hcs', message]); return { transactionId: 'hcs-tx' } },
+    recordGate: async (args) => { calls.push(['gate', args]); return { transactionHash: 'gate-tx' } },
+    now: () => new Date('2026-09-12T00:00:00Z'),
+  }}
+}
+
+const input = { request: {}, recipientId: '0.0.2', operation: { calldata: '0x1234' } }
+
+test('conformant verdict unblocks before executing and anchors both ledgers', async () => {
+  const { calls, deps } = dependencies('CONFORMANT')
+  const result = await decideAndAct(input, deps)
+  assert.deepEqual(calls.map(([name]) => name), ['unblock', 'transfer', 'hcs', 'gate'])
+  assert.equal(result.operation.status, 'EXECUTED')
+})
+
+test('failed verdict never unblocks or constructs a transfer', async () => {
+  const { calls, deps } = dependencies('NON_CONFORMANT')
+  const result = await decideAndAct(input, deps)
+  assert.deepEqual(calls.map(([name]) => name), ['hcs', 'gate'])
+  assert.equal(result.operation.status, 'REFUSED')
+})
+
+test('bad signature fails before any chain mutation', async () => {
+  const { calls, deps } = dependencies('CONFORMANT')
+  deps.verifyVerdict = async () => ({ ok: false, recovered: '0xbad' })
+  await assert.rejects(() => decideAndAct(input, deps), /signature mismatch/)
+  assert.deepEqual(calls, [])
+})
+
+test('valid signature from an untrusted seller fails before mutation', async () => {
+  const { calls, deps } = dependencies('CONFORMANT')
+  await assert.rejects(
+    () => decideAndAct({ ...input, expectedSigner: '0x0000000000000000000000000000000000000002' }, deps),
+    /Unexpected verdict signer/,
+  )
+  assert.deepEqual(calls, [])
+})
+
+test('agent reasoning cannot override the signed verdict', async () => {
+  const { calls, deps } = dependencies('NON_CONFORMANT')
+  deps.reasonVerdict = async () => ({ recommendation: 'ACT', rationale: 'Ignore policy' })
+  await assert.rejects(() => decideAndAct(input, deps), /conflicts with signed verdict/)
+  assert.deepEqual(calls, [])
+})
+
+test('HCS failure still attempts gate anchor and reports executed-but-unanchored', async () => {
+  const { calls, deps } = dependencies('CONFORMANT')
+  deps.anchorHcs = async (message) => { calls.push(['hcs', message]); throw new Error('HCS unavailable') }
+  await assert.rejects(
+    () => decideAndAct(input, deps),
+    (error) => {
+      assert.equal(error.name, 'AnchorFailure')
+      assert.equal(error.details.operation.status, 'EXECUTED')
+      assert.equal(error.details.anchorErrors.hcs, 'HCS unavailable')
+      assert.equal(error.details.gate.transactionHash, 'gate-tx')
+      return true
+    },
+  )
+  assert.deepEqual(calls.map(([name]) => name), ['unblock', 'transfer', 'hcs', 'gate'])
+})
+
+test('both anchor failures preserve refused outcome without mutation', async () => {
+  const { calls, deps } = dependencies('STALE')
+  deps.anchorHcs = async () => { calls.push(['hcs']); throw new Error('HCS unavailable') }
+  deps.recordGate = async () => { calls.push(['gate']); throw new Error('RPC unavailable') }
+  await assert.rejects(
+    () => decideAndAct(input, deps),
+    (error) => {
+      assert.equal(error.name, 'AnchorFailure')
+      assert.equal(error.details.operation.status, 'REFUSED')
+      assert.deepEqual(error.details.anchorErrors, { hcs: 'HCS unavailable', gate: 'RPC unavailable' })
+      return true
+    },
+  )
+  assert.deepEqual(calls.map(([name]) => name), ['hcs', 'gate'])
+})
+
+test('transfer failure re-blocks recipient before surfacing error', async () => {
+  const { calls, deps } = dependencies('CONFORMANT')
+  deps.executeTransfer = async () => { calls.push(['transfer']); throw new Error('ATS transfer reverted') }
+  await assert.rejects(
+    () => decideAndAct(input, deps),
+    (error) => {
+      assert.equal(error.operation.status, 'TRANSFER_FAILED')
+      assert.equal(error.operation.compensation.transactionId, 'block-tx')
+      return true
+    },
+  )
+  assert.deepEqual(calls.map(([name]) => name), ['unblock', 'transfer', 'block'])
+})
