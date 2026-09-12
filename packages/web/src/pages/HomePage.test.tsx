@@ -7,7 +7,7 @@ import { HomePage } from "./HomePage";
 afterEach(cleanup);
 
 describe("HomePage", () => {
-  it("renders the cinematic hero video and editorial call to action", () => {
+  it("renders the generated hero artwork with supporting motion", () => {
     render(
       <MemoryRouter>
         <HomePage />
@@ -17,11 +17,14 @@ describe("HomePage", () => {
     expect(screen.getByRole("heading", { name: "Proof before execution." })).toBeInTheDocument();
     expect(screen.getByText("Explore the decision desk")).toBeInTheDocument();
 
-    const heroImage = document.querySelector("img[src='/conformance-hero-still.webp']");
+    const heroImage = document.querySelector("img[src='/conformance-hero-v2.webp']");
     expect(heroImage).toBeInTheDocument();
+    expect(heroImage).toHaveAttribute("width", "1672");
+    expect(heroImage).toHaveAttribute("height", "941");
 
     const video = document.querySelector("video");
     expect(video).toHaveAttribute("src", "/conformance-hero-loop.mp4");
+    expect(video).toHaveAttribute("poster", "/conformance-hero-v2.webp");
     expect(video).toHaveAttribute("preload", "metadata");
   });
 
