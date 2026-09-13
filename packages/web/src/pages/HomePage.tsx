@@ -6,7 +6,7 @@ import { fetchTrades, type TradeListResponse } from "../api/trades";
 import { ClearingFlow } from "../components/ClearingFlow";
 import { DecisionCard } from "../components/DecisionCard";
 import { EventStream } from "../components/EventStream";
-import { LiveClearanceConsole } from "../components/LiveClearanceConsole";
+import { VaultControlRoom } from "../components/VaultControlRoom";
 
 const TIMING = { heading: "0ms", copy: "200ms", action: "400ms" } as const;
 const entranceDelay = (delay: string) => ({ "--entrance-delay": delay }) as CSSProperties;
@@ -99,7 +99,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <LiveClearanceConsole onComplete={() => setReloadKey((value) => value + 1)} />
+      <VaultControlRoom />
 
       <ClearingFlow trade={desk.status === "ready" ? desk.data.trades[0] ?? null : null} />
 

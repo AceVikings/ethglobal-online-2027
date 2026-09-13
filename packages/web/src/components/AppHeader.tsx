@@ -6,7 +6,7 @@ import { AccountButton } from "./AccountButton";
 
 const navItems = [
   { label: "Overview", to: "/" },
-  { label: "Live demo", to: "/?section=live" },
+  { label: "My vault", to: "/?section=live" },
   { label: "Flow", to: "/?section=flow" },
   { label: "Trades", to: "/?section=desk" },
   { label: "Activity", to: "/?section=activity" },
