@@ -43,8 +43,11 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000
 export function verifyLiveMandate(input: SignedLiveMandate, owner: string, now = new Date()): LiveMandate {
   const mandate = input?.mandate
   if (!mandate || input.signature == null) throw new Error('signed mandate is required')
+  const units = Number(mandate.units)
+  const fee = /^([0-9]+(?:\.[0-9]+)?) USDC$/.exec(mandate.maxDecisionFee)
   if (mandate.version !== 1 || mandate.owner !== owner || mandate.network !== 'hedera:testnet' ||
-      mandate.asset !== 'SPCF' || mandate.units !== '1.0' || mandate.maxDecisionFee !== '0.01 USDC' ||
+      mandate.asset !== (process.env.EQUITY_SYMBOL ?? 'SPCF') || !Number.isFinite(units) || units <= 0 || units > 10 ||
+      !fee || Number(fee[1]) > Number(process.env.X402_PRICE_USDC ?? '0.01') ||
       mandate.policy !== 'strict-market-health') {
     throw new Error('mandate does not match the bounded live-clearance policy')
   }
@@ -57,7 +60,7 @@ export function verifyLiveMandate(input: SignedLiveMandate, owner: string, now =
   }
   const wallet = getAddress(mandate.wallet)
   const recovered = getAddress(verifyMessage(liveMandateMessage({ ...mandate, wallet }), input.signature))
-  if (recovered !== wallet) throw new Error('mandate signature does not match its wallet')
+  if (recovered !== wallet) throw new Error('mandate signature does not match its wallet or bounded fields')
   return { ...mandate, wallet }
 }
 
@@ -194,13 +197,14 @@ export function createLiveClearanceRunner(options: LiveClearanceOptions = {}): L
           ATS_HOLD_FILE: holdFile,
           CARETAKER_STATE_FILE: stateFile,
           E2E_RUN_ID: runId,
+          BUYER_EVM_ADDRESS: mandate.wallet,
           CONFORMANCE_SERVICE_URL: `http://127.0.0.1:${process.env.PORT ?? '8080'}`,
         }
         await onStage({ id: 'mandate', status: 'confirmed', title: 'Mandate authenticated', detail: 'Privy session and wallet signature match the bounded policy.', proof: { owner, wallet: mandate.wallet } })
 
-        await onStage({ id: 'issuance', status: 'running', title: 'Preparing SPCF inventory', detail: 'The issuer is making exactly 1.0 SPCF available to the seller.' })
+        await onStage({ id: 'issuance', status: 'running', title: `Preparing ${mandate.asset} inventory`, detail: `The issuer is making exactly ${mandate.units} ${mandate.asset} available to the seller.` })
         const issuance: any = await runBeforePayment('scripts/seed-equity.cjs', environment)
-        await onStage({ id: 'issuance', status: 'confirmed', title: 'SPCF inventory confirmed', detail: 'ATS reports one seller unit ready for this run.', proof: { transaction: issuance.transactionId ?? null } })
+        await onStage({ id: 'issuance', status: 'confirmed', title: `${mandate.asset} inventory confirmed`, detail: `ATS reports ${mandate.units} seller units ready for this run.`, proof: { transaction: issuance.transactionId ?? null } })
 
         await onStage({ id: 'hold', status: 'running', title: 'Locking the exact ATS units', detail: 'The seller is binding asset, buyer, amount, expiry, and ClearingEscrow.' })
         const hold: any = await runBeforePayment('scripts/create-hold.cjs', environment, `${holdFile}.intent`)
@@ -216,7 +220,7 @@ export function createLiveClearanceRunner(options: LiveClearanceOptions = {}): L
         if (typeof proof.tradeDigest === 'string') environment.REPLAY_TRADE_DIGEST = proof.tradeDigest
         await onStage({ id: 'payment', status: 'confirmed', title: 'x402 payment settled', detail: 'Canonical Hedera USDC paid through Blocky402 before the verdict returned.', proof: { transaction: proof.paymentTransaction } })
         await onStage({ id: 'evidence', status: 'confirmed', title: 'Graph evidence passed', detail: 'All deterministic freshness, schema, deployment, and invariant checks passed.', proof: { deployments: Number(settled.purchased?.verdict?.checks?.shapeAgreement?.peers ?? 5) + 1 } })
-        await onStage({ id: 'settlement', status: 'confirmed', title: 'ATS hold executed', detail: 'ClearingEscrow consumed the nonce and moved exactly 1.0 SPCF.', proof: { tradeDigest: proof.tradeDigest, transaction: proof.settlementTransaction } })
+        await onStage({ id: 'settlement', status: 'confirmed', title: 'ATS hold executed', detail: `ClearingEscrow consumed the nonce and moved exactly ${mandate.units} ${mandate.asset}.`, proof: { tradeDigest: proof.tradeDigest, transaction: proof.settlementTransaction } })
 
         await onStage({ id: 'audit', status: 'running', title: 'Replaying public proof', detail: 'Mirror Node, contract state, ATS state, signature, payment, and HCS are being recomputed.' })
         await runProcess('scripts/replay.cjs', environment)

@@ -6,7 +6,7 @@ import { AccountButton } from "./AccountButton";
 
 const navItems = [
   { label: "Overview", to: "/" },
-  { label: "Live demo", to: "/?section=live" },
+  { label: "My vault", to: "/vaults" },
   { label: "Flow", to: "/?section=flow" },
   { label: "Trades", to: "/?section=desk" },
   { label: "Activity", to: "/?section=activity" },
@@ -16,6 +16,8 @@ const navItems = [
 export function AppHeader() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const onVaults = location.pathname === "/vaults";
+  const headerText = onVaults ? "text-white" : "text-primary-copy";
 
   useEffect(() => setOpen(false), [location]);
   useEffect(() => {
@@ -32,7 +34,7 @@ export function AppHeader() {
       <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto] items-center md:grid-cols-3">
         <Link
           to="/"
-          className="inline-flex min-h-10 items-center font-display text-[30px] leading-none tracking-[-1px] text-primary-copy focus-visible:ring-2 focus-visible:ring-active"
+          className={`inline-flex min-h-10 items-center font-display text-[30px] leading-none tracking-[-1px] focus-visible:ring-2 focus-visible:ring-active ${headerText}`}
           aria-label="AI Clearing Desk home"
         >
           Clearing<sup className="ml-1 self-start font-sans text-[9px] font-medium leading-none">AI</sup>
@@ -43,7 +45,7 @@ export function AppHeader() {
             <Link
               key={item.label}
               to={item.to}
-              className="inline-flex min-h-10 items-center text-sm font-medium text-primary-copy transition-opacity duration-200 hover:opacity-60 focus-visible:ring-2 focus-visible:ring-active"
+              className={`inline-flex min-h-10 items-center text-sm font-medium transition-opacity duration-200 hover:opacity-60 focus-visible:ring-2 focus-visible:ring-active ${headerText}`}
             >
               {item.label}
             </Link>
@@ -52,17 +54,17 @@ export function AppHeader() {
 
         <div className="hidden items-center justify-self-end gap-3 md:flex">
           <Link
-            to="/?section=desk"
-            className="hidden min-h-10 items-center gap-1.5 px-2 text-sm font-medium text-primary-copy focus-visible:ring-2 focus-visible:ring-active xl:inline-flex"
+            to="/vaults"
+            className={`hidden min-h-10 items-center gap-1.5 px-2 text-sm font-medium focus-visible:ring-2 focus-visible:ring-active xl:inline-flex ${headerText}`}
           >
-            Open desk <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+            Launch vault <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
           <AccountButton />
         </div>
 
         <button
           type="button"
-          className="inline-flex h-11 w-11 items-center justify-center justify-self-end rounded-full border border-primary-copy/30 text-primary-copy focus-visible:ring-2 focus-visible:ring-active md:hidden"
+          className={`inline-flex h-11 w-11 items-center justify-center justify-self-end rounded-full border focus-visible:ring-2 focus-visible:ring-active md:hidden ${onVaults ? "border-white/30 text-white" : "border-primary-copy/30 text-primary-copy"}`}
           onClick={() => setOpen((value) => !value)}
           aria-expanded={open}
           aria-controls="mobile-navigation"

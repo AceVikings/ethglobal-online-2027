@@ -17,12 +17,13 @@ describe("HomePage", () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>);
 
     expect(screen.getByRole("heading", { name: "Private-credit trades that clear only after proof." })).toBeInTheDocument();
-    expect(screen.getByText("View clearing desk")).toBeInTheDocument();
+    expect(screen.getByText("Build your agent vault")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "One held trade. Two provable outcomes." })).toBeInTheDocument();
     expect(await screen.findByText("250 NPCF")).toBeInTheDocument();
     expect(screen.getByText("DeepSeek explains—not decides.")).toBeInTheDocument();
     expect(screen.getByText("180.0")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View clearing desk" })).toHaveAttribute("href", "/?section=desk");
+    expect(screen.getByRole("link", { name: "Build your agent vault" })).toHaveAttribute("href", "/vaults");
+    expect(screen.getByRole("link", { name: "View public proof" })).toHaveAttribute("href", "/?section=desk");
 
     const heroImage = document.querySelector("img[src='/clearing-desk-hero-v3.webp']");
     expect(heroImage).toHaveAttribute("width", "1672");

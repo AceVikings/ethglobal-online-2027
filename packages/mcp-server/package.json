@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./auth": "./src/auth.ts",
+    "./server": "./src/server.ts"
+  },
   "bin": { "conformance-desk-mcp": "src/index.ts" },
   "scripts": {
     "start": "node --experimental-strip-types src/index.ts",

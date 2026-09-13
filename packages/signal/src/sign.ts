@@ -2,6 +2,7 @@ import { keccak256, toUtf8Bytes, SigningKey, computeAddress, TypedDataEncoder } 
 import type {
   ClearingAuthorization, Policy, SignedVerdict, VerdictPayload,
 } from './types.ts'
+import type { VaultMandateV2 } from './mandate.ts'
 
 /**
  * Canonical JSON: recursively sorted keys, no whitespace, UTF-8.
@@ -129,4 +130,28 @@ export function clearingPolicyHash(standard: string, policy: Policy): string {
 /** Derived evidence commitment; raw Graph rows remain seller-private. */
 export function clearingEvidenceHash(payload: Omit<VerdictPayload, 'v' | 'requestId' | 'issuedAt' | 'signer'>): string {
   return keccak256(toUtf8Bytes(canonicalJSON(payload)))
+}
+
+export const VAULT_MANDATE_TYPES: Record<string, Array<{ name: string; type: string }>> = {
+  VaultMandate: [
+    ['owner', 'string'], ['receiver', 'address'], ['vaultId', 'string'], ['mandateVersion', 'uint256'],
+    ['executor', 'address'], ['network', 'string'], ['offeringId', 'string'], ['security', 'address'],
+    ['partition', 'bytes32'], ['unitsBase', 'uint256'], ['maxUnitPriceMinor', 'uint256'],
+    ['maxPrincipalPerRunMinor', 'uint256'], ['maxEvidenceFeePerRunMinor', 'uint256'],
+    ['aggregatePrincipalCapMinor', 'uint256'], ['aggregateEvidenceFeeCapMinor', 'uint256'],
+    ['aggregateUnitCapBase', 'uint256'], ['maxRunCount', 'uint256'], ['policyHash', 'bytes32'],
+    ['triggerMode', 'string'], ['validFrom', 'uint256'], ['expiresAt', 'uint256'], ['nonce', 'bytes32'],
+  ].map(([name, type]) => ({ name, type })),
+}
+
+function vaultMandateDomain(mandate: VaultMandateV2) {
+  return { name: 'AI Clearing Desk Vault', version: '2', chainId: mandate.chainId, verifyingContract: mandate.verifyingContract }
+}
+
+export function hashVaultMandate(mandate: VaultMandateV2): string {
+  return TypedDataEncoder.hash(vaultMandateDomain(mandate), VAULT_MANDATE_TYPES, mandate)
+}
+
+export function verifyVaultMandateSignature(mandate: VaultMandateV2, signature: string): string {
+  return computeAddress(SigningKey.recoverPublicKey(hashVaultMandate(mandate), signature))
 }

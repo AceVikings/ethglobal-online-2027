@@ -217,6 +217,81 @@ button {
   background: rgba(110, 231, 183, 0.035);
 }
 
+.vault-room {
+  position: relative;
+  overflow: hidden;
+}
+
+.vault-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.vault-primary,
+.vault-secondary {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  padding: 0.7rem 1.15rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: transform 160ms ease, opacity 160ms ease, background-color 160ms ease;
+}
+
+.vault-primary { background: white; color: var(--color-primary-copy); }
+.vault-secondary { border: 1px solid rgba(255,255,255,.18); color: white; }
+.vault-primary:hover:not(:disabled), .vault-secondary:hover:not(:disabled) { transform: translateY(-1px); }
+.vault-primary:active:not(:disabled), .vault-secondary:active:not(:disabled) { transform: translateY(1px) scale(.99); }
+.vault-primary:disabled, .vault-secondary:disabled { cursor: wait; opacity: .5; }
+.vault-primary:focus-visible, .vault-secondary:focus-visible, .vault-offering:focus-visible, .vault-input:focus-visible { outline: 2px solid #6ee7b7; outline-offset: 3px; }
+
+.vault-offering {
+  display: grid;
+  min-height: 8.5rem;
+  gap: .65rem;
+  border: 1px solid rgba(255,255,255,.1);
+  padding: 1rem;
+  text-align: left;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.vault-offering strong { font-size: 1rem; }
+.vault-offering small { color: rgba(255,255,255,.4); line-height: 1.4; }
+.vault-offering.is-selected { border-color: rgba(110,231,183,.65); background: rgba(110,231,183,.07); transform: translateY(-2px); }
+
+.vault-field { display: grid; gap: .5rem; font-family: var(--font-mono); font-size: .625rem; letter-spacing: .08em; color: rgba(255,255,255,.45); }
+.vault-input { min-height: 2.9rem; width: 100%; border: 1px solid rgba(255,255,255,.13); background: rgba(255,255,255,.045); padding: .7rem .8rem; color: white; font-family: var(--font-sans); font-size: .875rem; letter-spacing: 0; }
+input[type="range"].vault-input { accent-color: #6ee7b7; }
+
+.vault-list-row { display: flex; min-height: 4rem; align-items: center; justify-content: space-between; gap: 1rem; border-top: 1px solid rgba(255,255,255,.1); padding: .9rem 0; font-size: .8rem; }
+.vault-list-row p { margin-top: .3rem; color: rgba(255,255,255,.35); font-family: var(--font-mono); font-size: .625rem; }
+.vault-approval { border: 1px solid rgba(110,231,183,.25); background: rgba(110,231,183,.05); padding: 1rem; }
+.vault-event { min-height: 12rem; background: #0c1526; padding: 1.1rem; transition: background-color 220ms ease, transform 220ms ease; }
+.vault-event-mark { display: flex; height: 1.8rem; width: 1.8rem; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.2); border-radius: 9999px; color: rgba(255,255,255,.4); }
+.vault-event-mark svg { height: .9rem; width: .9rem; }
+.vault-event.is-confirmed { background: rgba(110,231,183,.045); }
+.vault-event.is-confirmed .vault-event-mark { border-color: #6ee7b7; background: #6ee7b7; color: #0f172a; }
+.vault-event.is-running { background: rgba(255,255,255,.055); transform: translateY(-2px); }
+.vault-event.is-running .vault-event-mark { color: white; }
+.vault-evidence { display: grid; gap: 1px; background: rgba(255,255,255,.1); }
+.vault-evidence > div { min-height: 7.5rem; background: #0c1526; padding: 1.15rem; }
+.vault-evidence p { font-family: var(--font-mono); font-size: .625rem; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.35); }
+.vault-evidence strong { display: block; margin-top: .65rem; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 1rem; color: white; }
+
+@media (min-width: 640px) { .vault-evidence { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .vault-evidence { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+@media (prefers-reduced-motion: no-preference) {
+  .vault-event.is-running .vault-event-mark svg { animation: vault-event-spin 1.2s linear infinite; }
+}
+
+@keyframes vault-event-spin { to { transform: rotate(360deg); } }
+
 .trade-lifecycle-line.is-confirmed::after {
   transform: scaleX(1);
 }

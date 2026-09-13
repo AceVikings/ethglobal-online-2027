@@ -6,7 +6,6 @@ import { fetchTrades, type TradeListResponse } from "../api/trades";
 import { ClearingFlow } from "../components/ClearingFlow";
 import { DecisionCard } from "../components/DecisionCard";
 import { EventStream } from "../components/EventStream";
-import { LiveClearanceConsole } from "../components/LiveClearanceConsole";
 
 const TIMING = { heading: "0ms", copy: "200ms", action: "400ms" } as const;
 const entranceDelay = (delay: string) => ({ "--entrance-delay": delay }) as CSSProperties;
@@ -93,13 +92,16 @@ export function HomePage() {
           <p className="fade-rise mt-8 max-w-[670px] text-base leading-[1.625] text-secondary-copy md:text-lg" style={entranceDelay(TIMING.copy)}>
             A seller locks ATS fund units. A buyer agent pays for a live-data verdict. The clearing contract executes or releases that exact hold.
           </p>
-          <Link to="/?section=desk" className="fade-rise pill-action mt-8 inline-flex min-h-14 items-center gap-4 bg-action px-14 text-base font-medium text-white focus-visible:ring-2 focus-visible:ring-active focus-visible:ring-offset-2 focus-visible:ring-offset-canvas" style={entranceDelay(TIMING.action)}>
-            View clearing desk <ArrowDown className="h-4 w-4" aria-hidden="true" />
-          </Link>
+          <div className="fade-rise mt-8 flex flex-col items-center gap-3 sm:flex-row" style={entranceDelay(TIMING.action)}>
+            <Link to="/vaults" className="pill-action inline-flex min-h-14 items-center gap-4 bg-action px-10 text-base font-medium text-white focus-visible:ring-2 focus-visible:ring-active focus-visible:ring-offset-2 focus-visible:ring-offset-canvas">
+              Build your agent vault <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <Link to="/?section=desk" className="inline-flex min-h-14 items-center gap-3 rounded-full border border-primary-copy/20 bg-white/40 px-8 text-base font-medium text-primary-copy backdrop-blur focus-visible:ring-2 focus-visible:ring-active">
+              View public proof <ArrowDown className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
         </div>
       </section>
-
-      <LiveClearanceConsole onComplete={() => setReloadKey((value) => value + 1)} />
 
       <ClearingFlow trade={desk.status === "ready" ? desk.data.trades[0] ?? null : null} />
 

@@ -12,6 +12,7 @@ export type PrivySession = {
   logout: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
   signMessage: (message: string) => Promise<string>;
+  signTypedData?: (typedData: Record<string, unknown>) => Promise<string>;
 };
 
 const unavailableSession: PrivySession = {
@@ -57,6 +58,14 @@ function PrivySessionBridge({ children }: { children: ReactNode }) {
             { address: embeddedWallet.address, uiOptions: { title: "Authorize one bounded clearance" } },
           );
           return result.signature;
+        },
+        signTypedData: async (typedData) => {
+          if (!embeddedWallet) throw new Error("Privy embedded wallet is still provisioning");
+          const provider = await embeddedWallet.getEthereumProvider();
+          return provider.request({
+            method: "eth_signTypedData_v4",
+            params: [embeddedWallet.address, JSON.stringify(typedData)],
+          }) as Promise<string>;
         },
       }}
     >

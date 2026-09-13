@@ -12,12 +12,16 @@ COPY --chown=node:node packages/evaluator ./packages/evaluator
 COPY --chown=node:node packages/signal ./packages/signal
 COPY --chown=node:node packages/agent ./packages/agent
 COPY --chown=node:node packages/privy-hedera-poc ./packages/privy-hedera-poc
+COPY --chown=node:node packages/cli ./packages/cli
+COPY --chown=node:node packages/mcp-server ./packages/mcp-server
 COPY --chown=node:node scripts ./scripts
 
 RUN npm ci --omit=dev --ignore-scripts \
       --workspace @desk/service \
       --workspace @desk/agent \
       --workspace @desk/privy-hedera-poc \
+      --workspace @desk/cli \
+      --workspace @desk/mcp-server \
       --include-workspace-root=false \
     && npm cache clean --force
 
