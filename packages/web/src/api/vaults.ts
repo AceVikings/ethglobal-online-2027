@@ -37,6 +37,13 @@ export type AgentConnection = {
   lastSeenAt: string;
 };
 
+export type ConnectionToken = {
+  token: string;
+  expiresIn: number;
+  mcpUrl: string;
+  scopes: string[];
+};
+
 export type ApprovalRequest = {
   id: string;
   vaultId: string;
@@ -64,11 +71,20 @@ export type VaultRun = {
   triggeredBy: string;
   createdAt: string;
   proofDigest?: string;
+  snapshot?: {
+    offering?: { unitPrice?: string; currency?: string };
+    liveMandate?: { units?: string; asset?: string; maxDecisionFee?: string };
+  };
   events: RunEvent[];
 };
 
 export type VaultDraftInput = VaultPolicy & { offeringId: string; receiver: string; name: string };
-export type VaultDraftPreview = { draftId: string; mandateMessage: string; preview: { policyHash: string; principal: string } };
+export type VaultDraftPreview = {
+  draftId: string;
+  mandateMessage: string;
+  typedData: Record<string, unknown>;
+  preview: { policyHash: string; principal: string };
+};
 
 const PRODUCTION_API_BASE = "https://conformance-desk-api-4p35sr23vq-uc.a.run.app";
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.PROD ? PRODUCTION_API_BASE : "")).replace(/\/$/, "");
@@ -107,6 +123,10 @@ export function previewVaultDraft(accessToken: string, input: VaultDraftInput) {
 
 export function activateVault(accessToken: string, draftId: string, signature: string) {
   return request<{ vault: Vault }>("/api/v1/vaults", accessToken, { method: "POST", body: JSON.stringify({ draftId, signature }) });
+}
+
+export function createConnectionToken(accessToken: string) {
+  return request<ConnectionToken>("/api/v1/connections/token", accessToken, { method: "POST" });
 }
 
 export function decideApproval(accessToken: string, approvalId: string, decision: "approve" | "reject", signature?: string) {

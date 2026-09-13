@@ -57,6 +57,7 @@ function renderControlRoom(fetchImpl: typeof fetch) {
     logout: vi.fn().mockResolvedValue(undefined),
     getAccessToken: vi.fn().mockResolvedValue("privy-token"),
     signMessage: vi.fn().mockResolvedValue("0xsigned"),
+    signTypedData: vi.fn().mockResolvedValue("0xtyped"),
   };
   render(<PrivySessionProvider value={session}><VaultControlRoom /></PrivySessionProvider>);
   return session;
@@ -95,7 +96,7 @@ describe("VaultControlRoom", () => {
       requests.push({ url, init });
       if (url.endsWith("/offerings")) return json({ offerings: [offering] });
       if (url.endsWith("/vaults") && init?.method === "POST") return json({ vault });
-      if (url.endsWith("/vaults/drafts")) return json({ draftId: "draft-9", mandateMessage: "typed-mandate:draft-9", preview: { policyHash: "0xpolicy", principal: "50.00 USDC" } });
+      if (url.endsWith("/vaults/drafts")) return json({ draftId: "draft-9", mandateMessage: "typed-mandate:draft-9", typedData: { domain: { name: "Conformance Desk" }, primaryType: "VaultMandate", types: {}, message: { draftId: "draft-9" } }, preview: { policyHash: "0xpolicy", principal: "50.00 USDC" } });
       if (url.endsWith("/vaults")) return json({ vaults: [] });
       if (url.endsWith("/connections")) return json({ connections: [] });
       if (url.endsWith("/approvals")) return json({ approvals: [] });
@@ -107,9 +108,9 @@ describe("VaultControlRoom", () => {
     fireEvent.change(screen.getByLabelText("Investment units"), { target: { value: "6" } });
     fireEvent.click(screen.getByRole("button", { name: "Preview exact mandate" }));
     expect(await screen.findByText("50.00 USDC")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Sign & activate vault" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign EIP-712 & activate" }));
 
-    await waitFor(() => expect(session.signMessage).toHaveBeenCalledWith("typed-mandate:draft-9"));
+    await waitFor(() => expect(session.signTypedData).toHaveBeenCalledWith(expect.objectContaining({ primaryType: "VaultMandate" })));
     const draftRequest = requests.find(({ url }) => url.endsWith("/vaults/drafts"));
     expect(draftRequest?.init?.headers).toMatchObject({ Authorization: "Bearer privy-token" });
     expect(JSON.parse(String(draftRequest?.init?.body))).toMatchObject({ offeringId: offering.id, units: "6", receiver: vault.receiver });

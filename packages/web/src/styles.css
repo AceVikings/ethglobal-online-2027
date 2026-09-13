@@ -278,6 +278,13 @@ input[type="range"].vault-input { accent-color: #6ee7b7; }
 .vault-event.is-confirmed .vault-event-mark { border-color: #6ee7b7; background: #6ee7b7; color: #0f172a; }
 .vault-event.is-running { background: rgba(255,255,255,.055); transform: translateY(-2px); }
 .vault-event.is-running .vault-event-mark { color: white; }
+.vault-evidence { display: grid; gap: 1px; background: rgba(255,255,255,.1); }
+.vault-evidence > div { min-height: 7.5rem; background: #0c1526; padding: 1.15rem; }
+.vault-evidence p { font-family: var(--font-mono); font-size: .625rem; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.35); }
+.vault-evidence strong { display: block; margin-top: .65rem; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 1rem; color: white; }
+
+@media (min-width: 640px) { .vault-evidence { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .vault-evidence { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 @media (prefers-reduced-motion: no-preference) {
   .vault-event.is-running .vault-event-mark svg { animation: vault-event-spin 1.2s linear infinite; }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { watchRunEvents } from "./vaults";
+import { createConnectionToken, watchRunEvents } from "./vaults";
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -22,6 +22,20 @@ describe("watchRunEvents", () => {
     expect(received).toEqual(["Policy authorized"]);
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/runs/run-91/events", expect.objectContaining({
       headers: expect.objectContaining({ Authorization: "Bearer privy-token", "Last-Event-ID": "2" }),
+    }));
+  });
+});
+
+describe("createConnectionToken", () => {
+  it("creates the one-time connection with the Privy bearer", async () => {
+    const response = { token: "service.jwt", expiresIn: 3600, mcpUrl: "https://mcp.example.test", scopes: ["runs:request"] };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(response), { status: 201, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(createConnectionToken("privy-token")).resolves.toEqual(response);
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/connections/token", expect.objectContaining({
+      method: "POST",
+      headers: expect.objectContaining({ Authorization: "Bearer privy-token" }),
     }));
   });
 });
