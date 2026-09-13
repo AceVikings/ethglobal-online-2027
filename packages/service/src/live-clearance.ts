@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { getAddress, verifyMessage } from 'ethers'
 import { liveMandateMessage, type LiveMandate, type SignedLiveMandate } from '@desk/signal'
@@ -106,6 +106,15 @@ async function atomicJson(filename: string, value: unknown): Promise<void> {
   await rename(temporary, filename)
 }
 
+async function exists(filename: string): Promise<boolean> {
+  try {
+    await access(filename)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function publicProof(state: Record<string, any>) {
   return {
     tradeDigest: state.settlement?.tradeDigest ?? state.submitted?.tradeDigest ?? null,
@@ -148,14 +157,31 @@ export function createLiveClearanceRunner(options: LiveClearanceOptions = {}): L
     await atomicJson(policyFile, { runs: [...recent, { id: runId, owner, startedAt: startedAt.toISOString() }] })
   }
 
+  async function release(runId: string) {
+    const policyFile = path.join(root, 'rate-policy.json')
+    const current = await readJson<RateState>(policyFile, { runs: [] })
+    await atomicJson(policyFile, { runs: current.runs.filter((run) => run.id !== runId) })
+  }
+
+  async function runBeforePayment(script: string, environment: NodeJS.ProcessEnv, ambiguityFile?: string) {
+    try {
+      return await runProcess(script, environment)
+    } catch (error) {
+      if (ambiguityFile && await exists(ambiguityFile)) throw error
+      return runProcess(script, environment)
+    }
+  }
+
   return {
     async run(owner: string, signed: SignedLiveMandate, onStage: StageListener) {
       if (active) throw new Error('another live clearance is already running')
       active = true
       const startedAt = now()
+      let runId: string | null = null
+      let paymentStarted = false
       try {
         const mandate = verifyLiveMandate(signed, owner, startedAt)
-        const runId = randomUUID()
+        runId = randomUUID()
         await reserve(owner, runId, startedAt)
         const runDirectory = path.join(root, runId)
         const holdFile = path.join(runDirectory, 'ats-hold.json')
@@ -173,14 +199,15 @@ export function createLiveClearanceRunner(options: LiveClearanceOptions = {}): L
         await onStage({ id: 'mandate', status: 'confirmed', title: 'Mandate authenticated', detail: 'Privy session and wallet signature match the bounded policy.', proof: { owner, wallet: mandate.wallet } })
 
         await onStage({ id: 'issuance', status: 'running', title: 'Preparing SPCF inventory', detail: 'The issuer is making exactly 1.0 SPCF available to the seller.' })
-        const issuance: any = await runProcess('scripts/seed-equity.cjs', environment)
+        const issuance: any = await runBeforePayment('scripts/seed-equity.cjs', environment)
         await onStage({ id: 'issuance', status: 'confirmed', title: 'SPCF inventory confirmed', detail: 'ATS reports one seller unit ready for this run.', proof: { transaction: issuance.transactionId ?? null } })
 
         await onStage({ id: 'hold', status: 'running', title: 'Locking the exact ATS units', detail: 'The seller is binding asset, buyer, amount, expiry, and ClearingEscrow.' })
-        const hold: any = await runProcess('scripts/create-hold.cjs', environment)
+        const hold: any = await runBeforePayment('scripts/create-hold.cjs', environment, `${holdFile}.intent`)
         await onStage({ id: 'hold', status: 'confirmed', title: 'ATS hold confirmed', detail: 'The unit can no longer be double-spent.', proof: { holdId: hold.holdId, transaction: hold.transactionId ?? null } })
 
         await onStage({ id: 'payment', status: 'running', title: 'Buying one verdict', detail: 'The Privy execution wallet is validating and paying the 0.01 USDC x402 quote.' })
+        paymentStarted = true
         await onStage({ id: 'evidence', status: 'running', title: 'Checking live market evidence', detail: 'The seller service is querying the pinned Graph deployments and applying strict policy.' })
         await onStage({ id: 'settlement', status: 'running', title: 'Waiting for atomic settlement', detail: 'A conformant verdict executes the exact hold; a failed verdict releases it.' })
         await runProcess('scripts/run-caretaker.cjs', environment)
@@ -201,6 +228,12 @@ export function createLiveClearanceRunner(options: LiveClearanceOptions = {}): L
         await atomicJson(path.join(root, 'latest.json'), { runId, owner, stateFile, completedAt: now().toISOString(), proof: finalProof })
         return { runId, tradeDigest: finalProof.tradeDigest, proof: finalProof }
       } catch (error) {
+        if (runId && !paymentStarted) await release(runId)
+        console.error('live clearance failed', {
+          runId,
+          phase: paymentStarted ? 'paid-path' : 'pre-payment',
+          error: error instanceof Error ? error.message : String(error),
+        })
         await onStage({ id: 'audit', status: 'failed', title: 'Live clearance stopped', detail: publicFailure(error) })
         throw error
       } finally {

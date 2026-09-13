@@ -76,3 +76,26 @@ test('runs the real stage contract in order and publishes only after replay pass
   const published = JSON.parse(await readFile(publicStateFile, 'utf8'))
   assert.equal(published.replay.failed, 0)
 })
+
+test('retries an unambiguous pre-payment failure and releases a failed run from the quota', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'clearing-live-retry-'))
+  const wallet = Wallet.createRandom()
+  const value = mandate(wallet.address)
+  const signature = await wallet.signMessage(liveMandateMessage(value))
+  let attempts = 0
+  const runner = createLiveClearanceRunner({
+    root,
+    now: () => when,
+    cooldownSeconds: 0,
+    runProcess: async (script) => {
+      attempts += 1
+      if (script.endsWith('seed-equity.cjs')) throw new Error('temporary relay failure')
+      return {}
+    },
+  })
+
+  await assert.rejects(runner.run(owner, { mandate: value, signature }, () => {}), /temporary relay failure/)
+  assert.equal(attempts, 2)
+  const policy = JSON.parse(await readFile(path.join(root, 'rate-policy.json'), 'utf8'))
+  assert.deepEqual(policy.runs, [])
+})
