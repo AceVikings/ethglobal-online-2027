@@ -1,8 +1,8 @@
-![Clearing AI cover](docs/assets/clearing-ai-cover.png)
+![AI Clearing Desk cover](docs/assets/clearing-ai-cover.png)
 
-# Clearing AI — The Conformance Desk
+# AI Clearing Desk
 
-The Conformance Desk lets a user create a personalized, tightly bounded AI-managed clearing vault. The user's
+AI Clearing Desk lets a user create a personalized, tightly bounded AI-managed clearing vault. The user's
 Privy embedded wallet signs the selected ATS asset, units, price/risk limits, expiry, and a
 maximum `0.01 USDC` decision fee. A separate Privy-controlled buyer agent pays a Hedera x402
 endpoint for a live standardized market-data check. A signed decision then makes

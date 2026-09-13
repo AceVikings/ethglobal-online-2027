@@ -34,10 +34,11 @@ export function AppHeader() {
       <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto] items-center md:grid-cols-3">
         <Link
           to="/"
-          className={`inline-flex min-h-10 items-center font-display text-[30px] leading-none tracking-[-1px] focus-visible:ring-2 focus-visible:ring-active ${headerText}`}
+          className={`inline-flex min-h-10 items-center gap-3 focus-visible:ring-2 focus-visible:ring-active ${headerText}`}
           aria-label="AI Clearing Desk home"
         >
-          Clearing<sup className="ml-1 self-start font-sans text-[9px] font-medium leading-none">AI</sup>
+          <img src="/ai-clearing-desk-mark.svg" alt="" className="h-9 w-9" aria-hidden="true" />
+          <span className="font-display text-[27px] leading-none tracking-[-1px]">AI Clearing Desk</span>
         </Link>
 
         <nav className="hidden items-center justify-center gap-8 md:flex" aria-label="Primary navigation">
