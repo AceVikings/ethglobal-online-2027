@@ -12,6 +12,7 @@ export interface VaultRepository {
   getVault(ownerId: string, vaultId: string): Promise<Vault | null>
   setVaultStatus(ownerId: string, vaultId: string, status: VaultStatus): Promise<Vault | null>
   saveMandate(ownerId: string, vaultId: string, mandate: VaultMandateV2, signature: string): Promise<void>
+  getMandate(ownerId: string, vaultId: string, version?: number): Promise<{ mandate: VaultMandateV2; signature: string } | null>
   createRun(ownerId: string, input: CreateRun): Promise<{ run: ClearanceRun; created: boolean }>
   getRun(ownerId: string, runId: string): Promise<ClearanceRun | null>
   listRuns(ownerId: string, vaultId?: string): Promise<ClearanceRun[]>

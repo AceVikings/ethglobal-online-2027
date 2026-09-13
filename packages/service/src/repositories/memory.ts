@@ -44,6 +44,14 @@ export function createMemoryVaultRepository(options: Options = {}): VaultReposit
       mandates.set(`${vaultId}:${mandate.mandateVersion}`, { mandate: structuredClone(mandate), signature })
       vaults.set(vaultId, { ...vault, activeMandateVersion: mandate.mandateVersion, status: 'active', updatedAt: now().toISOString() })
     },
+    async getMandate(ownerId, vaultId, version) {
+      const vault = ownedVault(ownerId, vaultId)
+      if (!vault) return null
+      const selected = version ?? vault.activeMandateVersion
+      if (!selected) return null
+      const value = mandates.get(`${vaultId}:${selected}`)
+      return value ? structuredClone(value) : null
+    },
     async createRun(ownerId, input: CreateRun) {
       if (!ownedVault(ownerId, input.vaultId)) throw new Error('vault not found')
       const fingerprint = canonicalRunFingerprint(input)

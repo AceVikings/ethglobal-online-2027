@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@desk/evaluator": "0.1.0",
+    "@desk/mcp-server": "0.1.0",
     "@desk/signal": "0.1.0",
     "@google-cloud/firestore": "^7.11.6",
     "@privy-io/node": "0.34.0",

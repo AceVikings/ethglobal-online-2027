@@ -2,8 +2,8 @@
 
 # Clearing AI — The Conformance Desk
 
-The Conformance Desk lets a user create a tightly bounded AI-managed clearing vault. The user's
-Privy embedded wallet signs authority for one fund unit, one policy, a five-minute window, and a
+The Conformance Desk lets a user create a personalized, tightly bounded AI-managed clearing vault. The user's
+Privy embedded wallet signs the selected ATS asset, units, price/risk limits, expiry, and a
 maximum `0.01 USDC` decision fee. A separate Privy-controlled buyer agent pays a Hedera x402
 endpoint for a live standardized market-data check. A signed decision then makes
 `ClearingEscrow` execute or release that hold, then attempts to anchor the final digest to Hedera
@@ -16,10 +16,13 @@ have all been confirmed.
 ## Live application
 
 - Dashboard: [ethglobal-online-2027.onrender.com](https://ethglobal-online-2027.onrender.com)
+- Guided vault demo: [open `/vaults`](https://ethglobal-online-2027.onrender.com/#/vaults)
 - Clearing API: [health](https://conformance-desk-api-4p35sr23vq-uc.a.run.app/health) · [confirmed trades](https://conformance-desk-api-4p35sr23vq-uc.a.run.app/api/v1/trades)
 - Source: [public GitHub repository](https://github.com/AceVikings/ethglobal-online-2027)
 
-The dashboard is a Render Static Site. Its browser requests go to the scale-to-zero Cloud Run API.
+The dashboard is a Render Static Site. The dedicated `/vaults` control room guides the demo through
+configuration, EIP-712 authorization, one-time account-bound MCP connection, agent run request,
+human approval, replayable live events, and personal proof history. Its browser requests go to the scale-to-zero Cloud Run API.
 Public reads expose only sanitized, chain-confirmed caretaker state. The authenticated live endpoint
 writes isolated run artifacts to Cloud Storage and publishes a run only after independent replay
 passes. Deployment from `main` uses GitHub OIDC and Workload Identity Federation, not a stored GCP
@@ -49,10 +52,13 @@ sequenceDiagram
     participant Escrow as ClearingEscrow
     participant HCS as Hedera Consensus Service
 
-    User->>Web: Sign in and choose the bounded 1.0 SPCF mandate
+    User->>Web: Sign in and choose ATS asset, units, price, risk, fee, and expiry
     Web->>Privy: Sign exact mandate, expiry, policy, and spend ceiling
     Privy-->>Web: Wallet signature plus authenticated session
-    Web->>API: Stream a live clearance with bearer token and signed mandate
+    User->>Web: Generate a short-lived account-bound MCP connection
+    Buyer->>API: Request a run through scoped MCP tools
+    API-->>Web: Publish an approval request for the same run ID
+    User->>Privy: Approve that exact run
     API->>API: Verify Privy session, wallet signature, limits, cooldown, and quota
     Seller->>ATS: Issue and lock exact fund units in a hold
     Buyer->>API: Request a decision for that hold

@@ -29,6 +29,14 @@ export function createFirestoreVaultRepository(db: FirestoreLike, options: { id?
     async saveMandate(ownerId, vaultId, mandate: VaultMandateV2, signature: string) {
       await db.runTransaction(async tx => { const ref = vaultRef(ownerId, vaultId); const current = owned<Vault>(await tx.get(ref), ownerId); if (!current) throw new Error('vault not found'); tx.create(ref.collection('mandates').doc(String(mandate.mandateVersion)), { mandate, signature }); tx.update(ref, { activeMandateVersion: mandate.mandateVersion, status: 'active', updatedAt: now().toISOString() }) })
     },
+    async getMandate(ownerId, vaultId, version) {
+      const vault = await this.getVault(ownerId, vaultId)
+      if (!vault) return null
+      const selected = version ?? vault.activeMandateVersion
+      if (!selected) return null
+      const row = await vaultRef(ownerId, vaultId).collection('mandates').doc(String(selected)).get()
+      return row.exists ? row.data() as { mandate: VaultMandateV2; signature: string } : null
+    },
     async createRun(ownerId, input: CreateRun) {
       const fingerprint = canonicalRunFingerprint(input); const key = `${ownerId}:${input.vaultId}:${input.requestId}`; const indexRef = db.collection('runRequests').doc(Buffer.from(key).toString('base64url'))
       return db.runTransaction(async tx => {

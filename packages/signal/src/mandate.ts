@@ -3,10 +3,10 @@ export type LiveMandate = {
   owner: string
   wallet: string
   network: 'hedera:testnet'
-  asset: 'SPCF'
-  units: '1.0'
-  maxDecisionFee: '0.01 USDC'
-  policy: 'strict-market-health'
+  asset: string
+  units: string
+  maxDecisionFee: string
+  policy: string
   expiresAt: string
   nonce: string
 }
