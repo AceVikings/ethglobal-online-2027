@@ -1,5 +1,6 @@
 import type { PaymentRequirements } from '@x402/core/types'
 import {
+  AccountAllowanceApproveTransaction,
   AccountId,
   Client,
   Hbar,
@@ -106,6 +107,34 @@ export function createPrivyHederaSigner(config: PrivyHederaSignerConfig) {
 
   return {
     accountId: accountId.toString(),
+    async createPartiallySignedTokenAllowanceTransaction(input: {
+      tokenId: string
+      spenderAccountId: string
+      amount: bigint
+      feePayer: string
+    }): Promise<string> {
+      if (input.amount <= 0n) throw new Error('allowance amount must be greater than zero')
+      const transaction = new AccountAllowanceApproveTransaction()
+        .approveTokenAllowance(
+          TokenId.fromString(input.tokenId),
+          accountId,
+          AccountId.fromString(input.spenderAccountId),
+          input.amount,
+        )
+        .setTransactionId(TransactionId.generate(AccountId.fromString(input.feePayer)))
+
+      const client = network === 'hedera:mainnet' ? Client.forMainnet() : Client.forTestnet()
+      try {
+        transaction.freezeWith(client)
+        await transaction.signWith(publicKey, async bodyBytes => {
+          const hash = keccak256(bodyBytes) as `0x${string}`
+          return decodePrivyCompactSignature(await config.rawSign(hash))
+        })
+        return Buffer.from(transaction.toBytes()).toString('base64')
+      } finally {
+        client.close()
+      }
+    },
     async createPartiallySignedTransferTransaction(requirements: PaymentRequirements): Promise<string> {
       if (requirements.network !== network) {
         throw new Error(`payment network ${requirements.network} does not match signer network ${network}`)
