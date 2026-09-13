@@ -69,6 +69,7 @@ contract ClearingEscrowV2Test {
     bytes32 private constant MANDATE = keccak256("signed-vault-mandate");
     address private constant SELLER = address(0x51);
     address private constant BUYER = address(0xB0);
+    address private constant PAYER = address(0xA9);
     uint256 private constant UNITS = 25_000_000;
     uint256 private constant PRINCIPAL = 12_500_000;
 
@@ -81,45 +82,46 @@ contract ClearingEscrowV2Test {
         ats = new MockAtsV2();
         usdc = new MockPaymentToken();
         escrow = new ClearingEscrowV2(vm.addr(SIGNER_KEY));
-        usdc.mint(BUYER, PRINCIPAL * 2);
-        vm.prank(BUYER);
+        usdc.mint(PAYER, PRINCIPAL * 2);
+        vm.prank(PAYER);
         usdc.approve(address(escrow), PRINCIPAL * 2);
     }
 
     function testApprovalAtomicallyPaysPrincipalAndDeliversUnits() public {
         ClearingEscrowV2.Authorization memory authorization = _authorization(escrow.APPROVE(), keccak256("approve"));
         _seed(authorization);
-        uint256 buyerBefore = usdc.balanceOf(BUYER);
+        uint256 payerBefore = usdc.balanceOf(PAYER);
 
         escrow.settle(authorization, _sign(authorization));
 
         require(ats.executed() == UNITS, "units not delivered");
-        require(usdc.balanceOf(BUYER) == buyerBefore - PRINCIPAL, "buyer principal mismatch");
+        require(usdc.balanceOf(PAYER) == payerBefore - PRINCIPAL, "payer principal mismatch");
+        require(usdc.balanceOf(BUYER) == 0, "receiver paid principal");
         require(usdc.balanceOf(SELLER) == PRINCIPAL, "seller not paid");
     }
 
     function testDenialReleasesWithoutMovingPrincipal() public {
         ClearingEscrowV2.Authorization memory authorization = _authorization(escrow.DENY(), keccak256("deny"));
         _seed(authorization);
-        uint256 buyerBefore = usdc.balanceOf(BUYER);
+        uint256 payerBefore = usdc.balanceOf(PAYER);
 
         escrow.settle(authorization, _sign(authorization));
 
         require(ats.released() == UNITS, "hold not released");
-        require(usdc.balanceOf(BUYER) == buyerBefore && usdc.balanceOf(SELLER) == 0, "principal moved on denial");
+        require(usdc.balanceOf(PAYER) == payerBefore && usdc.balanceOf(SELLER) == 0, "principal moved on denial");
     }
 
     function testAtsFailureRollsBackPrincipalTransferAndNonce() public {
         ClearingEscrowV2.Authorization memory authorization = _authorization(escrow.APPROVE(), keccak256("rollback"));
         _seed(authorization);
         ats.setFailExecution(true);
-        uint256 buyerBefore = usdc.balanceOf(BUYER);
+        uint256 payerBefore = usdc.balanceOf(PAYER);
         bytes memory signature = _sign(authorization);
 
         vm.expectRevert(abi.encodeWithSignature("Error(string)", "ATS failed"));
         escrow.settle(authorization, signature);
 
-        require(usdc.balanceOf(BUYER) == buyerBefore && usdc.balanceOf(SELLER) == 0, "principal was not atomic");
+        require(usdc.balanceOf(PAYER) == payerBefore && usdc.balanceOf(SELLER) == 0, "principal was not atomic");
         require(!escrow.usedNonces(authorization.nonce), "nonce survived revert");
     }
 
@@ -142,7 +144,8 @@ contract ClearingEscrowV2Test {
             security: address(ats),
             partition: PARTITION,
             seller: SELLER,
-            buyer: BUYER,
+            receiver: BUYER,
+            payer: PAYER,
             amount: UNITS,
             holdId: 7,
             holdExpiry: block.timestamp + 1 hours,

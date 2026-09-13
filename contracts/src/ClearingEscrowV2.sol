@@ -46,7 +46,7 @@ contract ClearingEscrowV2 {
     uint8 public constant DENY = 2;
 
     bytes32 public constant AUTHORIZATION_TYPEHASH = keccak256(
-        "VerdictV2(uint256 chainId,address verifyingContract,address security,bytes32 partition,address seller,address buyer,uint256 amount,uint256 holdId,uint256 holdExpiry,uint8 action,bytes32 policyHash,bytes32 mandateHash,bytes32 evidenceHash,bytes32 evidencePaymentRef,address paymentToken,uint256 consideration,uint256 quoteExpiry,uint256 issuedAt,uint256 authorizationExpiry,bytes32 nonce)"
+        "VerdictV2(uint256 chainId,address verifyingContract,address security,bytes32 partition,address seller,address receiver,address payer,uint256 amount,uint256 holdId,uint256 holdExpiry,uint8 action,bytes32 policyHash,bytes32 mandateHash,bytes32 evidenceHash,bytes32 evidencePaymentRef,address paymentToken,uint256 consideration,uint256 quoteExpiry,uint256 issuedAt,uint256 authorizationExpiry,bytes32 nonce)"
     );
     bytes32 private constant DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
@@ -61,7 +61,8 @@ contract ClearingEscrowV2 {
         address security;
         bytes32 partition;
         address seller;
-        address buyer;
+        address receiver;
+        address payer;
         uint256 amount;
         uint256 holdId;
         uint256 holdExpiry;
@@ -126,7 +127,8 @@ contract ClearingEscrowV2 {
         }
         if (
             authorization.security == address(0) || authorization.seller == address(0)
-                || authorization.buyer == address(0) || authorization.amount == 0
+                || authorization.receiver == address(0) || authorization.payer == address(0)
+                || authorization.amount == 0
                 || authorization.policyHash == bytes32(0) || authorization.mandateHash == bytes32(0)
                 || authorization.evidenceHash == bytes32(0) || authorization.evidencePaymentRef == bytes32(0)
                 || authorization.paymentToken == address(0) || authorization.consideration == 0
@@ -159,7 +161,7 @@ contract ClearingEscrowV2 {
             IHoldByPartitionV2(authorization.security).getHoldForByPartition(identifier);
         if (
             liveAmount != authorization.amount || liveExpiry != authorization.holdExpiry
-                || liveEscrow != address(this) || liveBuyer != authorization.buyer
+                || liveEscrow != address(this) || liveBuyer != authorization.receiver
         ) revert HoldMismatch();
 
         usedNonces[authorization.nonce] = true;
@@ -167,11 +169,11 @@ contract ClearingEscrowV2 {
         if (authorization.action == APPROVE) {
             if (
                 !IERC20Payment(authorization.paymentToken).transferFrom(
-                    authorization.buyer, authorization.seller, authorization.consideration
+                    authorization.payer, authorization.seller, authorization.consideration
                 )
             ) revert PaymentFailed();
             (success,) = IHoldByPartitionV2(authorization.security).executeHoldByPartition(
-                identifier, authorization.buyer, authorization.amount
+                identifier, authorization.receiver, authorization.amount
             );
         } else {
             success = IHoldByPartitionV2(authorization.security).releaseHoldByPartition(identifier, authorization.amount);
