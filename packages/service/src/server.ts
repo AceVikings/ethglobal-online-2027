@@ -16,6 +16,11 @@ import type { PaymentGate, VerdictEvaluator, VerdictRequest } from './types.ts'
 import type { TradeReadModel } from './trades.ts'
 import type { PublicTradeVerifier } from './verification.ts'
 import type { LiveClearanceRunner, SignedLiveMandate } from './live-clearance.ts'
+import { authenticatedSubject, bearerToken } from './auth.ts'
+import { IdempotencyConflictError, type VaultRepository } from './repositories/types.ts'
+import { parseCreateVault, parseVaultStatus } from './vaults.ts'
+import { parseCreateRun } from './runs.ts'
+import { hashVaultMandate, validateVaultMandate, verifyVaultMandateSignature } from '@desk/signal'
 
 const MAX_BODY_BYTES = 16 * 1024
 
@@ -32,6 +37,7 @@ export interface ServiceOptions {
   liveClearance?: LiveClearanceRunner
   verifyAccessToken?: (token: string) => Promise<{ userId: string }>
   corsAllowedOrigin?: string
+  vaultRepository?: VaultRepository
 }
 
 interface CompletedResponse {
@@ -66,11 +72,6 @@ async function readJson(request: IncomingMessage): Promise<unknown> {
 
 function safeError(error: unknown): string {
   return error instanceof Error ? error.message : 'unknown error'
-}
-
-function bearerToken(request: IncomingMessage): string | null {
-  const match = /^Bearer\s+([^\s]+)$/i.exec(request.headers.authorization ?? '')
-  return match?.[1] ?? null
 }
 
 export function createVerdictServer(options: ServiceOptions) {
@@ -183,6 +184,72 @@ export function createVerdictServer(options: ServiceOptions) {
     if (request.method === 'GET' && url.pathname === '/api/v1/trades') {
       send(response, 200, options.trades ? await options.trades.list() : { trades: [], nextCursor: null })
       return
+    }
+    if (url.pathname.startsWith('/api/v1/vaults') || url.pathname.startsWith('/api/v1/runs')) {
+      const ownerId = await authenticatedSubject(request, options.verifyAccessToken)
+      if (!ownerId) { send(response, 401, { error: 'authentication_required' }); return }
+      if (!options.vaultRepository) { send(response, 503, { error: 'vaults_unavailable' }); return }
+      const repository = options.vaultRepository
+      try {
+        if (request.method === 'GET' && url.pathname === '/api/v1/vaults') {
+          send(response, 200, { vaults: await repository.listVaults(ownerId) }); return
+        }
+        if (request.method === 'POST' && url.pathname === '/api/v1/vaults') {
+          send(response, 201, await repository.createVault(ownerId, parseCreateVault(await readJson(request)))); return
+        }
+        const mandatePath = url.pathname.match(/^\/api\/v1\/vaults\/([^/]+)\/mandates$/)
+        if (request.method === 'POST' && mandatePath) {
+          const body = await readJson(request) as Record<string, unknown>
+          const mandate = validateVaultMandate(body.mandate)
+          if (mandate.vaultId !== decodeURIComponent(mandatePath[1])) throw new Error('mandate vaultId does not match route')
+          const vault = await repository.getVault(ownerId, mandate.vaultId)
+          if (!vault) { send(response, 404, { error: 'not_found' }); return }
+          if (mandate.owner !== ownerId) throw new Error('mandate owner does not match session')
+          if (mandate.receiver.toLowerCase() !== vault.receiver.toLowerCase()) throw new Error('mandate receiver does not match vault')
+          const signature = String(body.signature ?? '')
+          if (verifyVaultMandateSignature(mandate, signature).toLowerCase() !== mandate.receiver.toLowerCase()) throw new Error('mandate signature does not match receiver')
+          await repository.saveMandate(ownerId, mandate.vaultId, mandate, signature)
+          send(response, 201, { mandateHash: hashVaultMandate(mandate), version: mandate.mandateVersion }); return
+        }
+        const vaultRunsPath = url.pathname.match(/^\/api\/v1\/vaults\/([^/]+)\/runs$/)
+        if (request.method === 'GET' && vaultRunsPath) {
+          const vaultId = decodeURIComponent(vaultRunsPath[1]); if (!await repository.getVault(ownerId, vaultId)) { send(response, 404, { error: 'not_found' }); return }
+          send(response, 200, { runs: await repository.listRuns(ownerId, vaultId) }); return
+        }
+        const vaultPath = url.pathname.match(/^\/api\/v1\/vaults\/([^/]+)$/)
+        if (vaultPath && request.method === 'GET') {
+          const vault = await repository.getVault(ownerId, decodeURIComponent(vaultPath[1])); send(response, vault ? 200 : 404, vault ?? { error: 'not_found' }); return
+        }
+        if (vaultPath && request.method === 'PATCH') {
+          const vault = await repository.setVaultStatus(ownerId, decodeURIComponent(vaultPath[1]), parseVaultStatus(await readJson(request))); send(response, vault ? 200 : 404, vault ?? { error: 'not_found' }); return
+        }
+        if (request.method === 'POST' && url.pathname === '/api/v1/runs') {
+          const result = await repository.createRun(ownerId, parseCreateRun(await readJson(request)))
+          send(response, 202, { runId: result.run.id, created: result.created, state: result.run.state }); return
+        }
+        const eventsPath = url.pathname.match(/^\/api\/v1\/runs\/([^/]+)\/events$/)
+        if (request.method === 'GET' && eventsPath) {
+          const after = Number(request.headers['last-event-id'] ?? url.searchParams.get('after') ?? 0)
+          const events = await repository.listEvents(ownerId, decodeURIComponent(eventsPath[1]), Number.isSafeInteger(after) ? after : 0)
+          if (!events) { send(response, 404, { error: 'not_found' }); return }
+          if ((request.headers.accept ?? '').includes('text/event-stream')) {
+            response.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive' })
+            for (const event of events) response.write(`id: ${event.sequence}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+            response.end(); return
+          }
+          send(response, 200, { events }); return
+        }
+        const runPath = url.pathname.match(/^\/api\/v1\/runs\/([^/]+)$/)
+        if (request.method === 'GET' && runPath) {
+          const run = await repository.getRun(ownerId, decodeURIComponent(runPath[1])); send(response, run ? 200 : 404, run ?? { error: 'not_found' }); return
+        }
+        send(response, 404, { error: 'not_found' }); return
+      } catch (error) {
+        if (error instanceof IdempotencyConflictError) { send(response, 409, { error: 'idempotency_conflict' }); return }
+        if (error instanceof SyntaxError || /required|invalid|unknown field|does not match/.test(safeError(error))) { send(response, 400, { error: 'invalid_request', message: safeError(error) }); return }
+        if (/not found/.test(safeError(error))) { send(response, 404, { error: 'not_found' }); return }
+        console.error('vault API failed:', safeError(error)); send(response, 500, { error: 'internal_error' }); return
+      }
     }
     if (request.method === 'POST' && url.pathname === '/api/v1/live-clearances') {
       if (!options.liveClearance || !options.verifyAccessToken) {

@@ -5,5 +5,7 @@ export * from './mcp.ts'
 export * from './checks.ts'
 export * from './sign.ts'
 export * from './mandate.ts'
+export * from './vault.ts'
+export * from './runs.ts'
 
 export { checkConformance as computeConformanceVerdict } from './checks.ts'

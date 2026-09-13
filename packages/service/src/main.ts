@@ -5,6 +5,9 @@ import { paymentGateFromEnv } from './x402.ts'
 import { createFileTradeReadModel } from './trades.ts'
 import { createPublicTradeVerifier } from './verification.ts'
 import { createLiveClearanceRunner } from './live-clearance.ts'
+import { Firestore } from '@google-cloud/firestore'
+import { createFirestoreVaultRepository } from './repositories/firestore.ts'
+import { createMemoryVaultRepository } from './repositories/memory.ts'
 
 const signingKey = process.env.VERDICT_SIGNER_KEY
 if (!signingKey) throw new Error('VERDICT_SIGNER_KEY is required')
@@ -30,7 +33,12 @@ const privyAppSecret = process.env.PRIVY_APP_SECRET
 if (liveEnabled && (!privyAppId || !privyAppSecret)) {
   throw new Error('PRIVY_APP_ID and PRIVY_APP_SECRET are required when live clearance is enabled')
 }
-const privy = liveEnabled ? new PrivyClient({ appId: privyAppId!, appSecret: privyAppSecret! }) : null
+const privy = privyAppId && privyAppSecret ? new PrivyClient({ appId: privyAppId, appSecret: privyAppSecret }) : null
+const repositoryMode = process.env.VAULT_REPOSITORY ?? (process.env.K_SERVICE ? 'firestore' : 'memory')
+if (!['firestore', 'memory'].includes(repositoryMode)) throw new Error('VAULT_REPOSITORY must be firestore or memory')
+const vaultRepository = repositoryMode === 'firestore'
+  ? createFirestoreVaultRepository(new Firestore({ projectId: process.env.GOOGLE_CLOUD_PROJECT }))
+  : createMemoryVaultRepository()
 const server = createVerdictServer({
   evaluator, paymentGate, signingKey, trades, tradeVerifier,
   liveClearance: liveEnabled ? createLiveClearanceRunner() : undefined,
@@ -39,6 +47,7 @@ const server = createVerdictServer({
     return { userId: claim.user_id }
   } : undefined,
   corsAllowedOrigin: process.env.CORS_ALLOWED_ORIGIN,
+  vaultRepository,
 })
 const port = Number(process.env.PORT ?? 4020)
 const host = process.env.HOST ?? '127.0.0.1'
